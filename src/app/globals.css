@@ -1,0 +1,598 @@
+@import 'tailwindcss';
+/* Анимации shadcn (animate-in/fade-in/slide-in). */
+@import 'tw-animate-css';
+
+/* Тёмная тема переключается классом `.dark` (см. блок канона ниже), поэтому и
+   вариант `dark:` обязан смотреть на тот же признак. Без этой директивы
+   Tailwind v4 отдаёт `dark:` дефолтный `@media (prefers-color-scheme: dark)`:
+   у человека с тёмной ОС светлая публичка получала `dark:bg-input/30`,
+   `dark:bg-destructive/60` и т.п., хотя токены оставались светлыми (W6a P1-2).
+   Экспорт tweakcn директиву не содержит — она часть контракта Tailwind. */
+@custom-variant dark (&:is(.dark *));
+
+/* ====================================================================
+   КАНОН ТЕМЫ — docs/design/tweakcn-theme.css (Seline/tweakcn, 2026-08-26).
+   Блоки :root / .dark / @theme inline / @layer base вставлены вербатим.
+   Проектные дополнения (--font-display, no-bold) влиты в @theme inline
+   и в отдельный блок шрифтов ниже; сам канон-файл не редактируется.
+   ==================================================================== */
+
+:root {
+  --background: #fafaf9;
+  --foreground: #0c0a09;
+  --card: #ffffff;
+  --card-foreground: #0c0a09;
+  --popover: #ffffff;
+  --popover-foreground: #0c0a09;
+  --primary: #3ba6f1;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #0c0a09;
+  --muted: #f5f5f4;
+  /* Отклонение от экспорта tweakcn (#78716c) — решение W6a P2-11: канонное
+     значение давало 4.40:1 на своих же --secondary/--muted (#f5f5f4) и не
+     проходило AA для мелкого текста; пара токенов конфликтовала сама с собой.
+     #736c67 — минимальное затемнение, дающее 4.73:1 на secondary, 4.94:1 на
+     холсте и 5.15:1 на белом. Менять только с пересчётом всех трёх. */
+  --muted-foreground: #736c67;
+  --accent: #c1e1f7;
+  --accent-foreground: #0c0a09;
+  /* Отклонение от экспорта tweakcn (#dc2626) — решение W7-P3-16: в системе
+     жили два красных, --destructive #dc2626 и семантический --color-danger
+     #b4413f, и одно и то же «опасное» действие красилось то одним, то другим.
+     Оставлен красный семантического канона: он единственный из двух проходит
+     AA и на белом (5.57:1), и на своей подложке --color-danger-soft #f7eeed
+     (4.89:1) — #dc2626 на ней давал 4.25:1. Держать в паре с --color-danger. */
+  --destructive: #b4413f;
+  --destructive-foreground: #ffffff;
+  --border: #e8e6e5;
+  --input: #d6d3d1;
+  --ring: #3ba6f1;
+  --chart-1: #3ba6f1;
+  --chart-2: #1c1917;
+  --chart-3: #78716c;
+  --chart-4: #a8a29e;
+  --chart-5: #c1e1f7;
+  --sidebar: #fafaf9;
+  --sidebar-foreground: #0c0a09;
+  --sidebar-primary: #3ba6f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f4;
+  --sidebar-accent-foreground: #0c0a09;
+  --sidebar-border: #e8e6e5;
+  --sidebar-ring: #3ba6f1;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: Playfair Display, ui-serif, serif;
+  --font-mono: Space Mono, ui-monospace, monospace;
+  --radius: 1rem;
+  --shadow-x: 0;
+  --shadow-y: 1px;
+  --shadow-blur: 16px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.05;
+  --shadow-color: #000000;
+  --shadow-2xs: 0 1px 16px 0px hsl(0 0% 0% / 0.03);
+  --shadow-xs: 0 1px 16px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0 1px 16px 0px hsl(0 0% 0% / 0.05), 0 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow: 0 1px 16px 0px hsl(0 0% 0% / 0.05), 0 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow-md: 0 1px 16px 0px hsl(0 0% 0% / 0.05), 0 2px 4px -1px hsl(0 0% 0% / 0.05);
+  --shadow-lg: 0 1px 16px 0px hsl(0 0% 0% / 0.05), 0 4px 6px -1px hsl(0 0% 0% / 0.05);
+  --shadow-xl: 0 1px 16px 0px hsl(0 0% 0% / 0.05), 0 8px 10px -1px hsl(0 0% 0% / 0.05);
+  --shadow-2xl: 0 1px 16px 0px hsl(0 0% 0% / 0.13);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+  --card: #1c1917;
+  --card-foreground: #fafaf9;
+  --popover: #292524;
+  --popover-foreground: #fafaf9;
+  --primary: #3ba6f1;
+  --primary-foreground: #ffffff;
+  --secondary: #292524;
+  --secondary-foreground: #fafaf9;
+  --muted: #292524;
+  --muted-foreground: #a8a29e;
+  --accent: #16324a;
+  --accent-foreground: #c1e1f7;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #292524;
+  --input: #44403c;
+  --ring: #3ba6f1;
+  --chart-1: #3ba6f1;
+  --chart-2: #fafaf9;
+  --chart-3: #a8a29e;
+  --chart-4: #78716c;
+  --chart-5: #c1e1f7;
+  --sidebar: #1c1917;
+  --sidebar-foreground: #fafaf9;
+  --sidebar-primary: #3ba6f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #292524;
+  --sidebar-accent-foreground: #fafaf9;
+  --sidebar-border: #292524;
+  --sidebar-ring: #3ba6f1;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: Playfair Display, ui-serif, serif;
+  --font-mono: Space Mono, ui-monospace, monospace;
+  --radius: 1rem;
+  --shadow-x: 0;
+  --shadow-y: 1px;
+  --shadow-blur: 3px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.1;
+  --shadow-color: oklch(0 0 0);
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 2px 4px -1px hsl(0 0% 0% / 0.10);
+  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 4px 6px -1px hsl(0 0% 0% / 0.10);
+  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 8px 10px -1px hsl(0 0% 0% / 0.10);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+  /* Дополнение проекта: шрифт заголовков (Inter Tight). */
+  --font-display: var(--font-display);
+
+  /* Правило no-bold (требование пользователя): максимум 400 во всём вебе.
+     Держим здесь, чтобы font-medium/semibold/bold из shadcn-компонентов
+     не приходилось снимать руками в каждом месте. */
+  --font-weight-medium: 400;
+  --font-weight-semibold: 400;
+  --font-weight-bold: 400;
+  --font-weight-extrabold: 400;
+  --font-weight-black: 400;
+
+  /* Типографическая шкала Seline (docs/design/seline-style-reference.md):
+     утилиты text-display / text-heading / text-subheading / text-body-lg /
+     text-caption. Заголовки набираются font-display + weight 400. */
+  --text-display: 3.25rem;
+  --text-display--line-height: 1.12;
+  --text-display--letter-spacing: -0.021em;
+  --text-heading: 2rem;
+  --text-heading--line-height: 1.25;
+  --text-heading--letter-spacing: -0.025em;
+  --text-subheading: 1.25rem;
+  --text-subheading--line-height: 1.2;
+  --text-subheading--letter-spacing: -0.005em;
+  /* T1 (фидбэк владельца): межстрочный основного текста был воздушнее
+     современного канона — 1.69 у вводного абзаца и 1.9 у подписи. Плотность
+     приведена к шкале 2026 (Linear/Vercel-класс): лиды и вводные абзацы
+     1.5–1.55, обычный текст 1.45–1.5, мелкие подписи 1.35–1.4. Заголовочные
+     ступени выше не тронуты — по прямому указанию владельца. */
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.52;
+  --text-body-lg--letter-spacing: 0.003em;
+  /* Пол кегля — 12 px (W6b-fix: `.map-country` .58rem → .75rem; W6c P2-5).
+     На caption-токене набраны все подписи KPI, счётчиков плиток, осей и
+     легенд графиков и полей фильтр-баров: 10 px делали половину слов
+     аналитики размером сноски. Межстрочный 1.9 держался только ради того,
+     чтобы блоки не поехали при смене кегля 10 → 12 px; T1 снял его до 1.4 —
+     подпись в одну-две строки не нуждается в двойном интерлиньяже, а высоту
+     блока задают отступы, а не пустота внутри строки. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0.025em;
+
+  /* Ступени text-xs / text-sm / text-base / text-lg остаются дефолтами
+     Tailwind (1.333 / 1.429 / 1.5 / 1.556): они уже внутри целевой полосы
+     T1, переопределять их нечем. По коду сняты произвольные перекрытия,
+     которые тянули их вверх: `leading-[1.64]`, `leading-[1.69]`,
+     `leading-[2.3]` и `leading-relaxed` (1.625). */
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+
+  /* Канон движения (W8a). Tailwind отдаёт любому `transition-*` без явных
+     duration/easing свои дефолты 150ms + cubic-bezier(.4, 0, .2, 1) — два
+     значения мимо канона, и они стояли под каждым `transition-[color,…]`
+     примитивов shadcn (input, textarea, badge, toggle, slider, select,
+     table…). Переопределение здесь сажает весь этот класс переходов на
+     `--motion-instant` + `--ease-out-quint` разом: правило «три токена
+     длительности, ничего между ними» держится по умолчанию, а не ручной
+     припиской в каждом файле. Места с другой длительностью (dialog 240,
+     sheet 360, accordion 240) остаются явными классами.
+     `@theme inline` подставляет в утилиты сам `var(…)`, поэтому то, что
+     токены объявлены ниже по файлу, значения не имеет. */
+  --default-transition-duration: var(--motion-instant);
+  --default-transition-timing-function: var(--ease-out-quint);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Шрифты: next/font/google в layout.tsx отдаёт --font-inter и
+   --font-inter-tight. Литералы 'Inter'/'Inter Tight' из канона остаются
+   фолбэком, поэтому канон-файл править не нужно. */
+:root,
+.dark {
+  --font-sans: var(--font-inter), 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-inter-tight), 'Inter Tight', var(--font-sans);
+}
+
+/* ====================================================================
+   СЕМАНТИЧЕСКИЕ ТОКЕНЫ СОСТОЯНИЙ — канон, вне палитры Seline.
+   Палитра темы даёт один хроматический акцент и --destructive; различить
+   успех / предупреждение / информацию ею нельзя. Эти четыре пары (цвет +
+   -soft подложка) — функциональные состояния, а не украшение: их читают
+   StatusBadge всех кабинетов, CvIncompleteTile, легенда зон CvZonesEditor,
+   .inline-message и рейтинги метрик. Контраст ≥4.5:1 на белом/canvas и на
+   своей soft-подложке (решение владельца, W4D/M12) — значения не менять
+   без пересчёта AA.
+   ==================================================================== */
+:root {
+  --color-success: #3f7d63;
+  --color-success-soft: #eef3f0;
+  --color-warning: #8a5a1f;
+  --color-warning-soft: #f6f1e9;
+  /* Один красный на систему (W7-P3-16): то же значение стоит в --destructive
+     канона темы. Менять только вместе — за равенством следит тест. */
+  --color-danger: #b4413f;
+  --color-danger-soft: #f7eeed;
+  --color-info: #4a6b80;
+  --color-info-soft: #eef2f5;
+}
+
+/* ====================================================================
+   LEGACY REMAP — остаток старой телеграм-синей темы.
+   Значения переведены на палитру Seline (W0); после зачистки W5 здесь
+   остались только токены с живыми потребителями. Кто их читает:
+   · лендинг и публичка (~700 строк legacy-CSS ниже) — цвета, тени,
+     тайминги, высоты контролов, --radius-card/-control;
+   · 3D-сцены и глобусы читают значения ИЗ JS через getComputedStyle
+     (--color-primary, --color-ink, --globe-*, --color-transparent,
+     --color-primary-deep/-soft/-wash, --color-canvas, --globe-ocean);
+     переименование этих имён обесточит сцены — см. риск F.1/F.8
+     инвентаризации;
+   · test/brand-content.test.ts сторожит --site-content-width.
+   Токены без потребителей удалены в W5: --color-sidebar (он ещё и
+   перебивал --color-sidebar из @theme inline, из-за чего утилиты
+   bg-sidebar не темнели), --globe-route, --surface-settings,
+   --surface-chip, --shadow-label, --workspace-sidebar-width,
+   --workspace-content-width(-wide).
+   AA-контраст (зафиксированное решение владельца продукта, W4D/M12)
+   сохранён для всех текстоспособных токенов: ≥4.5:1 на белом/canvas/
+   sidebar и на своей soft-подложке. Отклонения от исходной раскладки
+   волны — в .superpowers/sdd/w0-report.md.
+   ==================================================================== */
+:root {
+  --color-primary: #3ba6f1;
+  /* primary-deep живёт текстом (67 из 69 применений), поэтому он темнее
+     предложенного #3398e1: тот давал 2.3:1 на primary-soft и 3.1:1 на белом. */
+  --color-primary-deep: #0b6499;
+  --color-primary-soft: #c1e1f7;
+  --color-primary-wash: #f3f9fe;
+  --color-ink: #0c0a09;
+  --color-copy: #57534e;
+  /* Держится в паре с --muted-foreground: legacy-текст живёт и на secondary. */
+  --color-muted: #736c67;
+  --color-line: #e8e6e5;
+  --color-surface: #ffffff;
+  --color-on-primary: #ffffff;
+  /* Предсуществующий баг: .farm-control-input input:focus-visible читал
+     var(--color-focus), которого в :root не было (спасал только одноимённый
+     токен HeroUI — он уйдёт в W1). Из JS не читается, поэтому color-mix. */
+  --color-focus: color-mix(in srgb, var(--primary) 35%, transparent);
+  --color-canvas: #fafaf9;
+  /* --color-success/-warning/-danger/-info (+ -soft) узаконены выше как
+     семантические токены канона — здесь их больше нет. */
+  --color-surface-raised: #ffffff;
+  --globe-ocean: #f1f8fd;
+  --globe-land: rgba(168, 162, 158, .26);
+  --globe-land-planned: rgba(120, 113, 108, .28);
+  --globe-land-network: rgba(59, 166, 241, .62);
+  --globe-land-hover: rgba(59, 166, 241, .82);
+  --globe-stroke: rgba(120, 113, 108, .24);
+  --globe-city: #78716c;
+  --globe-muted: rgba(168, 162, 158, .72);
+  --color-resource-script: #a97ade;
+  --color-resource-style: #55a994;
+  --color-resource-image: #d69a3d;
+  --color-resource-font: #6d87cd;
+  --color-transparent: rgba(0, 0, 0, 0);
+  --surface-nav: rgba(255, 255, 255, .72);
+  --surface-input: rgba(255, 255, 255, .92);
+  --surface-dock: rgba(255, 255, 255, .88);
+  --border-luminous: rgba(255, 255, 255, .85);
+  /* Синяя подсветка убрана: нейтральный чёрный в силе канона Seline. */
+  --shadow-primary: 0 10px 24px rgba(0, 0, 0, .10);
+  --shadow-primary-soft: 0 8px 20px rgba(0, 0, 0, .08);
+  --shadow-card: 0 4px 18px rgba(0, 0, 0, .04);
+  --shadow-float: 0 22px 70px rgba(0, 0, 0, .08), 0 2px 10px rgba(0, 0, 0, .04);
+  --shadow-soft: 0 12px 35px rgba(0, 0, 0, .06);
+  --ease-out-expo: cubic-bezier(.16, 1, .3, 1);
+  --ease-out-quint: cubic-bezier(.22, 1, .36, 1);
+  --motion-instant: 140ms;
+  --motion-state: 240ms;
+  --motion-layout: 360ms;
+  /* ── Шкала близости (T2) ──────────────────────────────────────────────
+     Расстояние — единственное, чем вёрстка сообщает, насколько два элемента
+     связаны (близость по Гештальту). Поэтому у шагов здесь роли, а не просто
+     величины: выбирается не «сколько пикселей красиво», а «насколько эти два
+     блока родня». База — 4 px (--spacing Tailwind), соотношение
+     внутри-группы : между-группами : между-секциями ≈ 1 : 2 : 4.
+
+     До этой волны в globals.css жило больше тридцати разных вертикальных
+     шагов (.1, .15, .18, .2, .25, .3, .32, .35, .4, .45, .5, .55, .6, .65,
+     .7, .75, .8, .85, .9, .95, 1, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45,
+     1.5 …). Соседние ярусы отличались на 2-3 px — то есть не отличались
+     вовсе, и иерархия групп на глаз не читалась. */
+  --gap-pair: .25rem;   /*  4 px — одна сущность: иконка↔подпись, dt↔dd */
+  --gap-tight: .5rem;   /*  8 px — соседние строки одной группы */
+  --gap-inner: .75rem;  /* 12 px — подпись↔контрол, ярусы одной формы */
+  --gap-group: 1rem;    /* 16 px — элементы одной группы */
+  --gap-block: 1.5rem;  /* 24 px — подгруппы внутри блока, строки списка */
+  --gap-stack: 2rem;    /* 32 px — самостоятельные блоки рядом */
+  --gap-band: 3rem;     /* 48 px — подсекции внутри секции */
+  --control-height-md: 2.75rem;
+  --control-height-lg: 3.45rem;
+  --control-height-sm: 2.5rem;
+  --workspace-gutter: clamp(1.25rem, 3vw, 3rem);
+  --auth-panel-width: 40rem;
+  /* Задокументированное исключение (решение лида, W5): канон радиуса —
+     --radius: 1rem, и на нём стоят кабинеты и все компоненты ui/. Лендингу
+     оставлены 2rem: сведение к канону заметно расквадратит карточки героя и
+     публички и спорит с требованием владельца «всё очень округлое». Новый код
+     берёт утилиты rounded-... по --radius, а не эти два токена. */
+  --radius-card: 2rem;
+  --radius-control: 1.35rem;
+  /* W7-P2-8: поле ввода имело три формы — 36 px / радиус 14 px (ui/input),
+     44 px / радиус 21.6 px (legacy .native-field) и 36 px / pill (нативные
+     контролы раздела камер). Канон один и он у ui/input: высота h-9 и
+     --radius-md. Эти два токена — канон формы поля; --radius-control
+     остаётся поверхностям (панели, строки рельса, сноски), но не полям.
+     pill — только кнопкам: так делают все шесть референсов аудита. */
+  --field-height: 2.25rem;
+  --field-radius: var(--radius-md);
+  /* W7-P2-8: pill писался двумя способами — 999px в legacy-CSS и
+     calc(infinity * 1px) в утилите rounded-full. Написание одно. */
+  --radius-pill: calc(infinity * 1px);
+  /* W7-P3-11: маркер аккордеона был текстовым глифом «+», а не иконкой
+     системы. Тот же путь, что у Heroicons `chevron-down` (24/outline), —
+     через mask, чтобы `<details>` остался нативным (браузер сам даёт
+     aria-expanded). F5: путь и толщина обводки сверены с пакетом. */
+  --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m19.5 8.25-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+  /* --radius задаёт канон (1rem); legacy-строчка 1.25rem снята, чтобы не
+     переопределять производные --radius-sm/md/lg/xl из @theme inline. */
+  --public-header-height: 5.25rem;
+  /* F1 (П.12, П.13): высота навигационной полосы публички. Обойма `.nav-links`
+     складывается из padding .3rem + рамка 1px + пункт 2.5rem = 51.6 px — токен
+     округляет её до 52 px и становится единственной высотой шапки: на нём
+     стоят и «Войти», и бургер, чтобы три элемента полосы читались одной
+     строкой, а не тремя разными кнопками. Ниже 52rem шапка сама ужимается до
+     4.65rem — вместе с ней ужимается и полоса. */
+  --nav-rail-height: 3.25rem;
+  /* Габарит знака бренда. Один токен на проект: шапка и футер публички,
+     мобильная шторка, страницы состояний и кабинеты берут его как есть, а
+     страница входа и рельс сайдбара переопределяют его на себе. */
+  --brand-mark-size: 1.75rem;
+  --site-content-width: 120rem;
+}
+
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
+@layer base {
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+button { border-radius: var(--radius-pill); }
+button:not(:disabled) { cursor: pointer; }
+button:disabled, [data-disabled='true'] { cursor: not-allowed; opacity: .52; }
+h1, h2, h3, h4, h5, h6, b, strong, th { font-weight: 400; }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+a, button, input { transition: color var(--motion-instant) var(--ease-out-quint), background-color var(--motion-instant) var(--ease-out-quint), border-color var(--motion-instant) var(--ease-out-quint), opacity var(--motion-instant) var(--ease-out-quint), transform var(--motion-instant) var(--ease-out-quint), box-shadow var(--motion-instant) var(--ease-out-quint); }
+button:active, [role='button']:active { transform: scale(.985); }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-primary) 28%, transparent); outline-offset: 3px; }
+::selection { background: var(--color-primary-soft); }
+
+/* ====================================================================
+   ЗАМОРОЖЕНО — общая рамка всех отраслевых демо (farm-* / industry-*).
+   В основном репо эти правила делят ферма, площадка, склад, кухня, бассейн.
+   Править нельзя: правки не будут приняты обратно.
+   ==================================================================== */
+/* Large 3D demo modal. Отступ от краёв экрана 3rem (фидбэк владельца:
+   «крупная модалка, а не окно на весь экран»). */
+.farm-dialog { width: calc(100vw - 6rem); max-width: none; height: calc(100dvh - 6rem); max-height: none; margin: auto; padding: 0; overflow: hidden; border: 1px solid var(--color-line); border-radius: 1.6rem; background: var(--color-surface); color: var(--color-ink); box-shadow: var(--shadow-float); }
+.farm-dialog::backdrop { background: color-mix(in srgb, var(--color-ink) 58%, transparent); backdrop-filter: blur(10px); }
+.farm-demo-shell { display: grid; height: 100%; grid-template-rows: minmax(0, 1fr); }
+/* Панель демо живёт на shadcn-компонентах (components/industry/DemoPanelUi.tsx);
+   видимой шапки у окна нет — действия поверх сцены. Здесь остаётся сетка окна,
+   сцена с её оверлеями и ползунок с зонным градиентом (см. industry-range
+   в конце файла). */
+.farm-demo-grid { display: grid; min-height: 0; grid-template-columns: minmax(0, 1.55fr) minmax(30rem, .78fr); }
+.farm-visual-column { min-height: 0; overflow: hidden; background: var(--color-canvas); }
+.farm-scene-shell { position: relative; height: 100%; min-height: 32rem; overflow: hidden; isolation: isolate; background: var(--color-canvas); }
+/* Башенный кран выше фермы: сцене площадки нужен запас по высоте. */
+/* Разрез склада шире, чем высокий: запас по высоте меньше, чем у площадки. */
+/* Кухня — такая же диорама-комната: разрезу нужен тот же запас по высоте. */
+/* Зал бассейна широкий и низкий: высоты фермы хватает, но кадр должен дышать. */
+.farm-scene-canvas { position: absolute; inset: 0; }
+.farm-scene-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.farm-scene-loading { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: .8rem; background: var(--color-canvas); color: var(--color-muted); font-size: .9rem; }
+.farm-scene-loading span { width: 2rem; height: 2rem; border: 1px solid var(--color-line); border-top-color: var(--color-primary); border-radius: 50%; animation: farm-spin 1s linear infinite; }
+.farm-scene-status { position: absolute; top: 1rem; left: 1rem; display: inline-flex; align-items: center; gap: .5rem; padding: .6rem .9rem; border: 1px solid var(--border-luminous); border-radius: var(--radius-pill); background: var(--surface-dock); color: var(--color-copy); font-size: .78rem; backdrop-filter: blur(12px); }
+.farm-scene-status span { width: .42rem; height: .42rem; border-radius: 50%; background: var(--color-success); }
+.farm-scene-status.phase-correcting span, .farm-scene-status.phase-evaluating span { background: var(--color-primary); animation: farm-pulse 1s ease-in-out infinite; }
+.farm-scene-status.phase-requires-attention span { background: var(--color-danger); animation: farm-pulse .65s ease-in-out infinite; }
+/* right 4.25rem — не наезжать на кнопку-вопросик в правом нижнем углу сцены. */
+.farm-notification { position: absolute; right: 4.25rem; bottom: 1rem; display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); gap: .9rem; align-items: center; width: min(28rem, calc(100% - 2rem)); padding: 1rem 1.1rem; border: 1px solid var(--border-luminous); border-radius: 1.1rem; background: var(--surface-dock); box-shadow: var(--shadow-float); color: var(--color-copy); font-size: .95rem; line-height: 1.45; animation: farm-notification-in var(--motion-state) var(--ease-out-quint) both; backdrop-filter: blur(18px); }
+.farm-notification > span { display: grid; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: 50%; background: var(--color-primary); color: var(--color-on-primary); }
+.farm-notification small { display: block; margin-bottom: .15rem; color: var(--color-ink); font-size: .84rem; }
+/* Интро-карточка сцены — светлая поверхность темы вместо тёмной плашки
+   (реворк UI демо по фидбэку владельца: панели демо живут в той же палитре,
+   что и кабинет). */
+.farm-scene-intro { position: absolute; z-index: 5; bottom: 1.25rem; left: 1.25rem; width: min(32rem, calc(100% - 2.5rem)); padding: 1.5rem; border: 1px solid var(--color-line); border-radius: 1rem; background: var(--color-surface-raised); box-shadow: var(--shadow-float); color: var(--color-ink); animation: farm-intro-in var(--motion-layout) var(--ease-out-expo) both; }
+.farm-scene-intro > span { color: var(--color-muted); font-size: .76rem; }
+.farm-scene-intro h3 { max-width: 21ch; margin: .28rem 0 .25rem; color: var(--color-ink); font-size: 1.35rem; font-weight: 400; letter-spacing: -.025em; }
+.farm-scene-intro p { max-width: 58ch; margin: 0; color: var(--color-copy); font-size: .95rem; line-height: 1.5; }
+.farm-scene-intro ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin: 1rem 0; padding: 0; list-style: none; }
+.farm-scene-intro li { display: grid; grid-template-columns: 1.65rem 1fr; gap: .6rem; align-items: center; color: var(--color-copy); font-size: .85rem; line-height: 1.4; }
+.farm-scene-intro li b { display: grid; width: 1.35rem; height: 1.35rem; place-items: center; border-radius: 50%; background: var(--color-primary-wash); color: var(--color-primary-deep); font-size: .62rem; font-weight: 400; }
+.farm-scene-intro > div { display: flex; align-items: center; gap: .8rem; }
+.farm-primary-action { min-height: 2.75rem; padding: .7rem 1.15rem; border: 0; border-radius: var(--radius-pill); background: var(--color-primary); color: var(--color-on-primary); font-size: .82rem; }
+.farm-intro-skip { border: 0; background: transparent; color: var(--color-muted); font-size: .78rem; }
+.farm-object-callout { position: absolute; z-index: 4; width: min(21rem, 34vw); padding: 1rem 1.1rem; border-radius: .9rem; background: color-mix(in srgb, var(--color-ink) 96%, transparent); box-shadow: var(--shadow-float); color: var(--color-on-primary); pointer-events: none; transform: translate(-50%, calc(-100% - 1.4rem)); animation: farm-callout-in var(--motion-state) var(--ease-out-quint) both; }
+.farm-object-callout.is-below { transform: translate(-50%, 1.4rem); }
+.farm-object-callout::after { content: ''; position: absolute; top: 100%; left: 50%; width: 1px; height: 1.4rem; background: var(--color-primary); }
+.farm-object-callout.is-below::after { top: auto; bottom: 100%; }
+.farm-callout-dot { position: absolute; top: calc(100% + 1.2rem); left: calc(50% - .2rem); width: .42rem; height: .42rem; border-radius: 50%; background: var(--color-primary); box-shadow: 0 0 0 .28rem color-mix(in srgb, var(--color-primary) 20%, transparent); }
+.farm-object-callout.is-below .farm-callout-dot { top: auto; bottom: calc(100% + 1.2rem); }
+.farm-object-callout strong { display: block; color: var(--color-on-primary); font-size: 1.05rem; font-weight: 400; }
+.farm-object-callout small { display: block; margin-bottom: .34rem; color: color-mix(in srgb, var(--color-primary) 74%, var(--color-on-primary)); font-size: .78rem; letter-spacing: .015em; }
+.farm-object-callout p { margin: .22rem 0 0; color: color-mix(in srgb, var(--color-on-primary) 76%, transparent); font-size: .94rem; line-height: 1.45; }
+/* Ползунок с зонным градиентом - единственная часть панели, которой нет в
+   shadcn (нужны псевдоэлементы трека/бегунка и градиент безопасных зон).
+   Цвет зоны задаёт data-zone строки (DemoControlRow), градиент - переменная
+   --range-zones из сцены. Остальная панель - components/industry/DemoPanelUi.
+   Форма — «толстый бар с кружком внутри» (фидбэк владельца): дорожка высотой
+   с кнопку, зонный градиент приглушён вуалью поверхности, бегунок — белый
+   круг; точный цвет зоны остаётся в цвете значения и в aria-valuetext. */
+.industry-control-row { --zone-color: var(--color-success); }
+.industry-control-row[data-zone='warning'] { --zone-color: var(--color-warning); }
+.industry-control-row[data-zone='critical'] { --zone-color: var(--color-danger); }
+.industry-control-row .industry-control-value { color: var(--zone-color); transition: color var(--motion-state) var(--ease-out-quint); }
+.industry-range { --range-veil: color-mix(in srgb, var(--color-surface) 58%, transparent); width: 100%; height: 2.1rem; margin: 0; padding: 0; border: 0; outline: 0; appearance: none; background: transparent; cursor: pointer; }
+.industry-range::-webkit-slider-runnable-track { height: 2.1rem; border-radius: var(--radius-pill); background: linear-gradient(var(--range-veil), var(--range-veil)), var(--range-zones); }
+.industry-range::-webkit-slider-thumb { width: 1.5rem; height: 1.5rem; margin-top: .3rem; border: 1px solid var(--color-line); border-radius: 50%; appearance: none; background: var(--color-surface); box-shadow: var(--shadow-soft); }
+.industry-range::-moz-range-track { height: 2.1rem; border: 0; border-radius: var(--radius-pill); background: linear-gradient(var(--range-veil), var(--range-veil)), var(--range-zones); }
+.industry-range::-moz-range-thumb { width: 1.5rem; height: 1.5rem; border: 1px solid var(--color-line); border-radius: 50%; background: var(--color-surface); box-shadow: var(--shadow-soft); }
+.industry-range:focus-visible { border-radius: var(--radius-pill); box-shadow: 0 0 0 .2rem var(--color-focus); }
+
+@keyframes farm-spin { to { transform: rotate(360deg); } }
+@keyframes farm-pulse { 50% { opacity: .42; } }
+/* W8a, правило «distance → скорость» (находка W8b). Вход уведомления, реплики
+   статуса и выноски объекта смещаются на .3–.6rem — это микро-дистанция, и на
+   --motion-layout (360 мс) они читались как «нехотя выползает». Переведены на
+   --motion-state; --motion-layout остаётся крупным входам сцены (заставка,
+   герой, разворот измерения), где смещение действительно на пол-экрана. */
+@keyframes farm-notification-in { from { opacity: 0; transform: translateY(.6rem) scale(.97); } }
+@keyframes farm-intro-in { from { opacity: 0; transform: translateY(.7rem); filter: blur(.2rem); } }
+@keyframes farm-callout-in { from { opacity: 0; transform: translate(-50%, calc(-100% - 1rem)) scale(.97); } }
+.farm-object-callout.is-below { animation-name: farm-callout-in-below; }
+@keyframes farm-callout-in-below { from { opacity: 0; transform: translate(-50%, 1rem) scale(.97); } }
+
+@media (max-width: 68rem) {
+  .farm-dialog { width: calc(100vw - 2.5rem); height: calc(100dvh - 2.5rem); }
+  .farm-demo-grid { grid-template-columns: minmax(0, 1.25fr) minmax(25rem, .75fr); }
+  .farm-scene-shell { min-height: 24rem; }
+}
+@media (max-width: 50rem) {
+  .farm-dialog { width: 100vw; height: 100dvh; border: 0; border-radius: 0; }
+  .farm-demo-grid { display: block; overflow-y: auto; }
+  .farm-visual-column { display: block; overflow: visible; }
+  .farm-scene-shell { height: 28rem; min-height: 0; }
+  .farm-object-callout { width: min(15rem, 42vw); }
+}
+@media (max-width: 35rem) {
+  .farm-scene-shell { height: 22rem; }
+  .farm-scene-status { top: .75rem; left: .75rem; }
+  .farm-notification { right: .75rem; bottom: 3.5rem; }
+  .farm-scene-intro { right: .75rem; bottom: .75rem; left: .75rem; width: auto; }
+  .farm-scene-intro ol { grid-template-columns: 1fr; }
+  .farm-object-callout { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .farm-scene-loading span, .farm-scene-status span, .farm-scene-intro, .farm-object-callout { animation: none; }
+}
+
+/* ====================================================================
+   РЕДАКТИРУЕМО — стили автомойки (carwash-*). Возвращаются в основной
+   репо как есть: держите их в этом блоке, новые классы — с префиксом carwash-.
+   ==================================================================== */
+/* Carwash uses the same right-hand controls as the other industry demos. */
+.carwash-dialog [data-slot='card-content'] { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.carwash-dialog [data-slot='select-value'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.carwash-event-region { position: absolute; z-index: 4; bottom: 0; left: 0; right: 0; display: grid; justify-items: center; padding: 2rem 4rem 1.5rem; overflow: hidden; pointer-events: none; }
+.carwash-event { display: inline-flex; align-items: center; gap: .75rem; width: max-content; max-width: 100%; padding: .85rem 1.1rem; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--surface-dock); box-shadow: var(--shadow-soft); backdrop-filter: blur(18px); grid-area: 1 / 1; animation: carwash-event-in var(--motion-layout) var(--ease-out-quint) var(--motion-layout) both; }
+.carwash-event[data-leaving='true'] { animation: carwash-event-out var(--motion-layout) var(--ease-out-expo) forwards; }
+.carwash-event > div { min-width: 0; }
+@keyframes carwash-event-in { from { opacity: 0; transform: translateY(calc(100% + 2rem)) scale(.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes carwash-event-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(100% + 2rem)); } }
+@media (max-width: 640px) { .carwash-event-region { padding: 1.5rem 1rem 4rem; } .carwash-event { padding: .75rem; gap: .6rem; } }
+.carwash-event-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex: none; border-radius: var(--radius-pill); background: var(--color-primary-wash); color: var(--color-primary); }
+.carwash-event-icon svg { width: 1.2rem; height: 1.2rem; }
+.carwash-event[data-tone='success'] .carwash-event-icon { background: var(--color-success-soft); color: var(--color-success); }
+.carwash-event[data-tone='warning'] .carwash-event-icon { background: var(--color-danger-soft); color: var(--color-danger); }
+.carwash-event[data-tone='success'] path { stroke-dasharray: 36; stroke-dashoffset: 36; animation: carwash-check var(--motion-layout) var(--ease-out-quint) var(--motion-instant) forwards; }
+.carwash-event[data-tone='progress'] svg { animation: carwash-working 3s linear infinite; }
+.carwash-event-title, .carwash-event-detail { display: block; font-weight: 400; }
+.carwash-event-title { color: var(--color-ink); font-size: .9rem; line-height: 1.35; }
+.carwash-event-detail { margin-top: .2rem; color: var(--color-muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.carwash-dialog .farm-object-callout { width: auto; max-width: 12rem; padding: .55rem .85rem; pointer-events: none; }
+@keyframes carwash-check { to { stroke-dashoffset: 0; } }
+@keyframes carwash-working { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .carwash-event[data-leaving='true'] { display: none; }
+  .carwash-event, .carwash-event-icon svg, .carwash-event path { animation: none !important; stroke-dashoffset: 0 !important; }
+}
+/* Высота сцены автомойки по брейкпоинтам (в основном репо стоит рядом с
+   сёстрами farm/cold/kitchen/pool; здесь вынесено в редактируемый блок). */
+.carwash-scene-shell { min-height: 34rem; }
+@media (max-width: 68rem) { .carwash-scene-shell { min-height: 26rem; } }
+@media (max-width: 50rem) { .carwash-scene-shell { height: 30rem; min-height: 0; } }
