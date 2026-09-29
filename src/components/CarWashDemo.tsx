@@ -18,11 +18,22 @@ import {
 } from './industry/DemoPanelUi';
 import { Card, CardContent } from './ui/card';
 import { CARWASH_BASELINE } from '../lib/carwash-simulation';
-import { carwashLoop, type CarWashService, type CarWashTourKey } from '../lib/carwash-loop';
+import {
+  carwashLoop,
+  type CarWashIdle,
+  type CarWashOwnerNotice,
+  type CarWashService,
+  type CarWashTourKey,
+} from '../lib/carwash-loop';
 
 const CarWashScene = dynamic(() => import('./CarWashScene'), { ssr: false });
 
-const CARWASH_SCENARIO_ITEMS: CarWashTourKey[] = ['normal-visit', 'unknown-car', 'other-service'];
+const CARWASH_SCENARIO_ITEMS: CarWashTourKey[] = [
+  'normal-visit',
+  'unknown-car',
+  'other-service',
+  'idle-box',
+];
 
 /** Время визита для пуша: туманный старт в середине дня плюс ход тура. */
 const visitClock = (seconds: number) => {
@@ -179,10 +190,12 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
             >
               {ready && running && <CarWashNotification event={frame} />}
             </div>
-            {ready && running && frame.phone && (
+            {ready && running && frame.notice !== 'none' && (
               <CarWashOwnerPhone
                 box={frame.focusBox}
                 clock={visitClock(elapsed.current)}
+                idle={frame.idle}
+                notice={frame.notice}
                 plate={frame.cars[frame.focusBox - 1]!.plate}
               />
             )}
@@ -257,19 +270,25 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
 }
 
 /**
- * Макет телефона собственника: последний шаг сценария — визит без оплаты, и система
- * пишет владельцу, чтобы он открыл журнал и разобрался. Пуш адресован человеку,
- * поэтому и выглядит как обычное уведомление телефона, а не как строка в CRM.
+ * Макет телефона собственника: последний шаг сценария — и система пишет владельцу,
+ * чтобы он открыл журнал и разобрался. Пуш адресован человеку, поэтому выглядит
+ * как обычное уведомление телефона, а не как строка в CRM. Текст зависит от того,
+ * что именно пошло не так: не внесли оплату или бокс простоял без сотрудника.
  */
 function CarWashOwnerPhone({
   box,
   clock,
+  idle,
+  notice,
   plate,
 }: {
   box: number;
   clock: string;
+  idle: CarWashIdle | null;
+  notice: Exclude<CarWashOwnerNotice, 'none'>;
   plate: string;
 }) {
+  const where = `Бокс ${box} · ${clock} · ${plate}`;
   return (
     <div className="carwash-phone" role="status" aria-label="Пуш собственнику на телефон">
       <div className="carwash-phone-frame">
@@ -279,10 +298,20 @@ function CarWashOwnerPhone({
             <span className="carwash-phone-app">ORIONIX</span>
             <span className="carwash-phone-now">сейчас</span>
           </div>
-          <p className="carwash-phone-title">Проверьте мойку</p>
-          <p className="carwash-phone-body">
-            Бокс {box} · {clock} · {plate} — оплата не внесена
-          </p>
+          {notice === 'idle' ? (
+            <>
+              <p className="carwash-phone-title">Где был сотрудник?</p>
+              <p className="carwash-phone-body">
+                {where} — простояла {idle?.minutes ?? 20} минут без сотрудника, услугу оказали
+                только потом
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="carwash-phone-title">Проверьте мойку</p>
+              <p className="carwash-phone-body">{where} — оплата не внесена</p>
+            </>
+          )}
         </div>
       </div>
     </div>

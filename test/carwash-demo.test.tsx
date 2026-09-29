@@ -64,7 +64,7 @@ describe('continuous carwash demonstration', () => {
     expect(within(dialog).getByLabelText('Этапы визита машины')).toBeTruthy();
     expect(within(dialog).getAllByText(/Иллюстративная симуляция/)).toHaveLength(1);
   });
-  it('offers exactly the two scenarios that are implemented in 3D', () => {
+  it('offers exactly the scenarios that are implemented in 3D', () => {
     const dialog = openCarWash();
     fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
     const options = within(dialog).getAllByRole('option');
@@ -72,6 +72,7 @@ describe('continuous carwash demonstration', () => {
       'Обычный визит',
       'Приехала машина не из списка',
       'Оказана другая услуга',
+      'Машина простаивает в боксе',
     ]);
   });
   it('waits for Запустить, then plays the base scenario and loops through every bay', () => {
@@ -231,5 +232,45 @@ describe('continuous carwash demonstration', () => {
     expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Сбросить' }));
     expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
+  });
+  it('играет простой бокса: двадцать минут тишины, потом сотрудник и пуш собственнику', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Машина простаивает в боксе' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    const live = within(dialog).getByRole('status', { name: 'События автомойки' });
+    expect(live.textContent).toContain('Машина заезжает');
+    // Пока бокс простаивает, система никому ничего не пишет.
+    act(() => vi.advanceTimersByTime(16_000));
+    expect(live.textContent).toContain('В боксе двадцать минут никого');
+    expect(within(dialog).queryByLabelText('Пуш собственнику на телефон')).toBeNull();
+    expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
+    act(() => vi.advanceTimersByTime(14_000));
+    expect(live.textContent).toContain('Сотрудник подошёл');
+    act(() => vi.advanceTimersByTime(6_000));
+    expect(live.textContent).toContain('Мойка в работе');
+    act(() => vi.advanceTimersByTime(9_000));
+    expect(live.textContent).toContain('Проверьте, где был сотрудник');
+    const push = within(dialog).getByLabelText('Пуш собственнику на телефон');
+    expect(push.textContent).toContain('Где был сотрудник?');
+    expect(push.textContent).toMatch(/простояла 20 минут без сотрудника/);
+    // Сигнал уходит собственнику, а не службе контроля.
+    expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
+  });
+  it('Сбросить гасит пуш о простое и возвращает обычный визит', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Машина простаивает в боксе' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    act(() => vi.advanceTimersByTime(45_000));
+    expect(within(dialog).getByLabelText('Пуш собственнику на телефон').textContent).toContain(
+      'Где был сотрудник?',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Сбросить' }));
+    expect(within(dialog).queryByLabelText('Пуш собственнику на телефон')).toBeNull();
   });
 });

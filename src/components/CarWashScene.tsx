@@ -401,6 +401,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
               price: tour.service.performedPrice,
             }
           : null,
+        tour?.idleNote,
       );
       const requested = p.view ?? (p.guidedCamera ? stage : 'overview'),
         key = `${requested}:${p.focusBox}:${count}`;

@@ -71,17 +71,17 @@ describe('сценарий «машина не из списка»', () => {
     expect(car.plate).toMatch(/\d{3} [A-Z]{3} \d{2}/);
   });
   it('показывает пуш собственнику на неоплате и зацикливает визит', () => {
-    expect(unknown(38).phone).toBe(true);
+    expect(unknown(38).notice).toBe('unpaid');
     expect(unknown(38).tone).toBe('warning');
     const next = carwashLoop(carwashTourSeconds('unknown-car'), 'unknown-car');
     expect(next.visit).toBe(1);
     expect(next.alert).toBe('none');
-    expect(next.phone).toBeFalsy();
+    expect(next.notice).toBe('none');
   });
   it('не трогает обычный визит: у него нет ни флага, ни пуша', () => {
     expect(carwashLoop(0).alert).toBe('none');
     expect(carwashLoop(30).alert).toBe('none');
-    expect(carwashLoop(30).phone).toBeFalsy();
+    expect(carwashLoop(30).notice).toBe('none');
   });
 });
 
@@ -107,7 +107,7 @@ describe('сценарий «оказана другая услуга»', () => 
   it('сотруднику не показывает ошибку: ни треугольника, ни пуша за весь визит', () => {
     const alerts = [0, 8, 15, 20, 24, 30, 34, 40].map((wall) => other(wall).alert);
     expect(alerts).toEqual(Array<string>(8).fill('none'));
-    expect([0, 20, 30, 36].every((wall) => !other(wall).phone)).toBe(true);
+    expect([0, 20, 30, 36].every((wall) => other(wall).notice === 'none')).toBe(true);
   });
   it('отправляет сигнал службе контроля только на последнем шаге', () => {
     expect([0, 20, 30, 33].map((wall) => other(wall).staffAlert)).toEqual([
@@ -124,5 +124,56 @@ describe('сценарий «оказана другая услуга»', () => 
     expect(next.visit).toBe(1);
     expect(next.staffAlert).toBe('none');
     expect(next.alert).toBe('none');
+  });
+});
+
+describe('сценарий «машина простаивает в боксе»', () => {
+  const idle = (wall: number) => carwashLoop(wall, 'idle-box');
+  it('начинается как обычный визит: заезд, номер, заказ с исполнителем', () => {
+    expect(idle(0).title).toBe('Машина заезжает');
+    expect(idle(8).title).toBe('Номер распознан');
+    expect(idle(12).title).toBe('Заказ взят в работу');
+  });
+  it('держит машину в боксе двадцать минут: работа не идёт, камера считает простой', () => {
+    const idleShot = idle(20);
+    expect(idleShot.title).toBe('В боксе двадцать минут никого');
+    expect(idleShot.idleNote).toBe(20);
+    expect(idleShot.cars[idleShot.focusBox - 1]!.washing).toBe(false);
+    expect(idleShot.cars[idleShot.focusBox - 1]!.motion).toBe('parked');
+    // Простой тянется дольше любого шага обычного визита: 21 базовая секунда.
+    expect(idle(27).title).toBe('В боксе двадцать минут никого');
+  });
+  it('считает простой и саму услугу: 20 минут без сотрудника, потом 10 минут работы', () => {
+    expect(idle(30).idle).toEqual({ minutes: 20, washMinutes: 10 });
+    expect(idle(30).title).toBe('Сотрудник подошёл');
+    expect(idle(35).title).toBe('Мойка в работе');
+    expect(idle(35).cars[idle(35).focusBox - 1]!.washing).toBe(true);
+    expect(carwashLoop(30).idle).toBeNull();
+  });
+  it('записи визита не касается: ни треугольника, ни простоя на мониторе после мойки', () => {
+    expect([0, 12, 20, 27, 30, 35, 40].map((wall) => idle(wall).alert)).toEqual(
+      Array<string>(7).fill('none'),
+    );
+    expect(idle(35).idleNote).toBeNull();
+    expect([0, 20, 30, 40].map((wall) => idle(wall).staffAlert)).toEqual(
+      Array<string>(4).fill('none'),
+    );
+  });
+  it('пишет собственнику только на последнем шаге визита', () => {
+    expect([0, 20, 30, 40].map((wall) => idle(wall).notice)).toEqual([
+      'none',
+      'none',
+      'none',
+      'none',
+    ]);
+    expect(idle(45).notice).toBe('idle');
+    expect(idle(45).title).toBe('Проверьте, где был сотрудник');
+  });
+  it('зацикливается и сбрасывает простой вместе с визитом', () => {
+    expect(carwashTourSeconds('idle-box')).toBeCloseTo(72 / TOUR_SPEED);
+    const next = carwashLoop(carwashTourSeconds('idle-box'), 'idle-box');
+    expect(next.visit).toBe(1);
+    expect(next.notice).toBe('none');
+    expect(next.idleNote).toBeNull();
   });
 });

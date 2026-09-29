@@ -415,11 +415,12 @@ export function buildCarWash() {
     occupied?: Array<string | null>,
     alerts?: Array<CarWashAlert>,
     service?: { label: string; minutes: number; price: number } | null,
+    idleNote?: number | null,
   ) {
     const plates = occupied ?? Array.from({ length: 3 }, (_, i) => i + 1 === focusBox ? plate : null);
     const key = `${plates.join(':')}:${status}:${focusBox}:${tone}:${alerts?.join(':') ?? ''}:${
       service ? `${service.label}:${service.minutes}:${service.price}` : ''
-    }`;
+    }:${idleNote ?? ''}`;
     if (key === screenKey) return;
     screenKey = key;
     screenContext.fillStyle = P.white;
@@ -467,6 +468,13 @@ export function buildCarWash() {
         42,
         512,
       );
+    }
+    // Простой бокса видно и сотруднику: камера честно считает пустое время, но в записи
+    // визита это ничем не выглядит — ни треугольника, ни смены статуса.
+    if (idleNote) {
+      screenContext.fillStyle = AMBER;
+      screenContext.font = '400 24px Arial';
+      screenContext.fillText(`BOX ${focusBox} · IDLE ${idleNote} MIN · NO STAFF`, 42, service ? 458 : 512);
     }
     screenTexture.needsUpdate = true;
   }

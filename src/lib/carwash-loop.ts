@@ -7,7 +7,7 @@ export const VISIT_SECONDS = BASE_VISIT / TOUR_SPEED;
 const BOX_ORDER = [2, 1, 3] as const;
 
 /** Сценарии, которые реально проигрываются в 3D. Остальные ключи живут пока только в планах. */
-export type CarWashTourKey = 'normal-visit' | 'unknown-car' | 'other-service';
+export type CarWashTourKey = 'normal-visit' | 'unknown-car' | 'other-service' | 'idle-box';
 
 /**
  * Треугольник на записи визита в системе: `review` — жёлтый, визит ждёт разбора,
@@ -20,6 +20,21 @@ export type CarWashAlert = 'none' | 'review' | 'unpaid';
  * на мониторе мойщика всё зелёное, расхождение уходит только на терминал администратора.
  */
 export type CarWashStaffAlert = 'none' | 'service-mismatch';
+
+/**
+ * Что именно система пишет собственнику машины. `unpaid` — не внесли оплату,
+ * `idle` — бокс простоял без сотрудника. Письмо адресовано человеку, поэтому
+ * у каждого случая свой текст, а не общая строка в журнале.
+ */
+export type CarWashOwnerNotice = 'none' | 'unpaid' | 'idle';
+
+/** Простой бокса: сколько минут машина ждала сотрудника и сколько заняла сама услуга. */
+export interface CarWashIdle {
+  /** Минуты, которые машина простояла в боксе без сотрудника. */
+  minutes: number;
+  /** Минуты, которые заняла сама услуга после прихода сотрудника. */
+  washMinutes: number;
+}
 
 /** Заказ и факт по услуге: что оплачивал клиент и что пробили по факту. */
 export interface CarWashService {
@@ -45,7 +60,9 @@ interface Shot {
   /** Сигнал службе контроля; держится так же, как флаг сотрудника. */
   staffAlert?: CarWashStaffAlert;
   /** Показать пуш собственнику на телефон. */
-  phone?: boolean;
+  notice?: CarWashOwnerNotice;
+  /** Минуты простоя, которые монитор бокса показывает прямо сейчас. */
+  idleNote?: number;
 }
 
 const SHOTS: Shot[] = [
@@ -184,7 +201,7 @@ const UNKNOWN_CAR_SHOTS: Shot[] = [
     title: 'Оплата не внесена — пуш собственнику',
     tone: 'warning',
     alert: 'unpaid',
-    phone: true,
+    notice: 'unpaid',
     message:
       'Оплаты по мойке нет. Жёлтый треугольник стал красным, а собственнику ушло уведомление на телефон: проверьте мойку, такое-то время и такая-то машина.',
   },
@@ -200,10 +217,12 @@ interface TourProfile {
   readUntil: number;
   /** Услуга по сценарию; в обычном визите её нет. */
   service?: CarWashService;
+  /** Простой бокса по сценарию; в остальных визитах его нет. */
+  idle?: CarWashIdle;
 }
 
 /**
- * Третий сценарий: в заказе комплексная мойка, по факту пробита короткая.
+ * Подмена услуги: в заказе комплексная мойка, по факту пробита короткая.
  * Первые два шага не отличить от обычного визита — расхождение появляется только
  * на выборе услуги, и до сотрудника оно не доходит: монитор остаётся зелёным,
  * статус визита успешный, треугольника нет. Сигнал уходит на терминал службы
@@ -294,6 +313,91 @@ const OTHER_SERVICE_SHOTS: Shot[] = [
   },
 ];
 
+const IDLE_BOX: CarWashIdle = { minutes: 20, washMinutes: 10 };
+
+/**
+ * Простой бокса: машина въехала, заказ принят, исполнитель назначен — и в боксе
+ * двадцать минут никто не появляется. Камера честно считает пустое время, потом
+ * сотрудник всё-таки приходит и мойка занимает те же десять минут.
+ * Треугольника на записи нет: визит идёт как обычный, и задержку видит только
+ * собственник — ему уходит письмо «где был сотрудник».
+ */
+const IDLE_BOX_SHOTS: Shot[] = [
+  {
+    end: 7,
+    view: 'arrival',
+    phase: 'detecting',
+    title: 'Машина заезжает',
+    tone: 'info',
+    message:
+      'Камера замечает автомобиль и открывает визит. Остальные боксы продолжают работать.',
+  },
+  {
+    end: 14,
+    view: 'recognition',
+    phase: 'evaluating',
+    title: 'Номер распознан',
+    tone: 'success',
+    message: 'Номер и время въезда появляются в системе автоматически, без звонка админу.',
+  },
+  {
+    end: 21,
+    view: 'order',
+    phase: 'correcting',
+    title: 'Заказ взят в работу',
+    tone: 'success',
+    message:
+      'Администратор подтверждает комплексную мойку и назначает исполнителя. Система считает, что бокс занят и работа идёт.',
+  },
+  {
+    end: 42,
+    view: 'overview',
+    phase: 'correcting',
+    title: 'В боксе двадцать минут никого',
+    tone: 'warning',
+    idleNote: IDLE_BOX.minutes,
+    message:
+      'Машина стоит, ворота открыты, мойщик не подходит. Камера ведёт сессию и считает пустое время бокса — на мониторе это просто «бокс занят», треугольника нет.',
+  },
+  {
+    end: 49,
+    view: 'washing',
+    phase: 'correcting',
+    title: 'Сотрудник подошёл',
+    tone: 'progress',
+    message:
+      'Мойщик появился в боксе только сейчас и сразу начал мойку. Камера фиксирует момент начала работ — двадцать минут простоя остаются в истории визита.',
+  },
+  {
+    end: 57,
+    view: 'washing',
+    phase: 'correcting',
+    title: 'Мойка в работе',
+    tone: 'progress',
+    message:
+      'Сама услуга занимает десять минут. В боксе всё выглядит обычно: сессия идёт, время считается, статус визита успешный.',
+  },
+  {
+    end: 64,
+    view: 'departure',
+    phase: 'verifying',
+    title: 'Выезд, сверка времени',
+    tone: 'success',
+    message:
+      'Машина выехала. Длительность сходится с временем в боксе — а вот двадцать минут до начала работ в неё не входят.',
+  },
+  {
+    end: 72,
+    view: 'overview',
+    phase: 'verifying',
+    title: 'Проверьте, где был сотрудник',
+    tone: 'warning',
+    notice: 'idle',
+    message:
+      'Камера отдаёт собственнику уведомление: бокс простоял 20 минут без сотрудника, сама услуга заняла 10. Где был сотрудник и почему машина стояла — вопрос к человеку.',
+  },
+];
+
 const PROFILES: Record<CarWashTourKey, TourProfile> = {
   'normal-visit': { shots: SHOTS, visit: BASE_VISIT, departAt: 29.5, readUntil: 34 },
   'unknown-car': { shots: UNKNOWN_CAR_SHOTS, visit: 64, departAt: 37, readUntil: 42 },
@@ -304,6 +408,7 @@ const PROFILES: Record<CarWashTourKey, TourProfile> = {
     readUntil: 42,
     service: OTHER_SERVICE,
   },
+  'idle-box': { shots: IDLE_BOX_SHOTS, visit: 72, departAt: 64, readUntil: 69, idle: IDLE_BOX },
 };
 
 /** Длительность одного визита выбранного сценария в секундах стенного времени. */
@@ -371,6 +476,13 @@ export function carwashLoop(elapsedSeconds: number, scenario: CarWashTourKey = '
     const defined = shots[index]!.staffAlert;
     if (defined) staffAlert = defined;
   }
+  // Письмо собственнику — третий независимый канал: у визита без оплаты есть ещё
+  // и пуш, а простой бокса показывается без всякого треугольника на записи.
+  let notice: CarWashOwnerNotice = 'none';
+  for (let index = 0; index <= shotIndex; index++) {
+    const defined = shots[index]!.notice;
+    if (defined) notice = defined;
+  }
   const cars = [1, 2, 3].map((box): TourCar => {
     const hero = box === focusBox,
       next = box === nextBox;
@@ -409,7 +521,10 @@ export function carwashLoop(elapsedSeconds: number, scenario: CarWashTourKey = '
     scenario,
     alert,
     staffAlert,
+    notice,
     service: profile.service ?? null,
+    idle: profile.idle ?? null,
+    idleNote: shot.idleNote ?? null,
     focusBox,
     cars,
     visit,
