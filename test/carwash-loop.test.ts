@@ -104,6 +104,12 @@ describe('сценарий «оказана другая услуга»', () => 
     });
     expect(carwashLoop(19).service).toBeNull();
   });
+  it('показывает выполненную услугу на мониторе только после пробития', () => {
+    expect([0, 8, 12].map((wall) => other(wall).serviceLine)).toEqual([false, false, false]);
+    expect(other(15).serviceLine).toBe(true);
+    expect(other(15).title).toBe('Мойщик пробивает услугу');
+    expect(carwashLoop(15).serviceLine).toBe(false);
+  });
   it('сотруднику не показывает ошибку: ни треугольника, ни пуша за весь визит', () => {
     const alerts = [0, 8, 15, 20, 24, 30, 34, 40].map((wall) => other(wall).alert);
     expect(alerts).toEqual(Array<string>(8).fill('none'));
@@ -134,43 +140,49 @@ describe('сценарий «машина простаивает в боксе»
     expect(idle(8).title).toBe('Номер распознан');
     expect(idle(12).title).toBe('Заказ взят в работу');
   });
-  it('держит машину в боксе двадцать минут: работа не идёт, камера считает простой', () => {
+  it('держит машину в боксе двадцать минут: работа не идёт, машина просто стоит', () => {
     const idleShot = idle(20);
     expect(idleShot.title).toBe('В боксе двадцать минут никого');
-    expect(idleShot.idleNote).toBe(20);
+    expect(idleShot.idleNote).toBeNull();
     expect(idleShot.cars[idleShot.focusBox - 1]!.washing).toBe(false);
     expect(idleShot.cars[idleShot.focusBox - 1]!.motion).toBe('parked');
-    // Простой тянется дольше любого шага обычного визита: 21 базовая секунда.
-    expect(idle(27).title).toBe('В боксе двадцать минут никого');
+    // Простой тянется 25 базовых секунд — дольше любого шага обычного визита.
+    expect(idle(23).title).toBe('В боксе двадцать минут никого');
+  });
+  it('показывает простой на мониторе бокса отдельным кадром', () => {
+    const counted = idle(27);
+    expect(counted.title).toBe('Камера считает простой');
+    expect(counted.view).toBe('hardware');
+    expect(counted.idleNote).toBe(20);
   });
   it('считает простой и саму услугу: 20 минут без сотрудника, потом 10 минут работы', () => {
-    expect(idle(30).idle).toEqual({ minutes: 20, washMinutes: 10 });
-    expect(idle(30).title).toBe('Сотрудник подошёл');
-    expect(idle(35).title).toBe('Мойка в работе');
-    expect(idle(35).cars[idle(35).focusBox - 1]!.washing).toBe(true);
-    expect(carwashLoop(30).idle).toBeNull();
+    expect(idle(32).idle).toEqual({ minutes: 20, washMinutes: 10 });
+    expect(idle(32).title).toBe('Сотрудник подошёл');
+    expect(idle(37).title).toBe('Мойка в работе');
+    expect(idle(37).cars[idle(37).focusBox - 1]!.washing).toBe(true);
+    expect(carwashLoop(32).idle).toBeNull();
   });
-  it('записи визита не касается: ни треугольника, ни простоя на мониторе после мойки', () => {
-    expect([0, 12, 20, 27, 30, 35, 40].map((wall) => idle(wall).alert)).toEqual(
+  it('записи визита не касается: ни треугольника, ни терминала, ни простоя после мойки', () => {
+    expect([0, 12, 20, 27, 32, 37, 42].map((wall) => idle(wall).alert)).toEqual(
       Array<string>(7).fill('none'),
     );
-    expect(idle(35).idleNote).toBeNull();
-    expect([0, 20, 30, 40].map((wall) => idle(wall).staffAlert)).toEqual(
+    expect(idle(37).idleNote).toBeNull();
+    expect([0, 20, 32, 42].map((wall) => idle(wall).staffAlert)).toEqual(
       Array<string>(4).fill('none'),
     );
   });
   it('пишет собственнику только на последнем шаге визита', () => {
-    expect([0, 20, 30, 40].map((wall) => idle(wall).notice)).toEqual([
+    expect([0, 20, 32, 42].map((wall) => idle(wall).notice)).toEqual([
       'none',
       'none',
       'none',
       'none',
     ]);
-    expect(idle(45).notice).toBe('idle');
-    expect(idle(45).title).toBe('Проверьте, где был сотрудник');
+    expect(idle(47).notice).toBe('idle');
+    expect(idle(47).title).toBe('Проверьте, где был сотрудник');
   });
   it('зацикливается и сбрасывает простой вместе с визитом', () => {
-    expect(carwashTourSeconds('idle-box')).toBeCloseTo(72 / TOUR_SPEED);
+    expect(carwashTourSeconds('idle-box')).toBeCloseTo(74 / TOUR_SPEED);
     const next = carwashLoop(carwashTourSeconds('idle-box'), 'idle-box');
     expect(next.visit).toBe(1);
     expect(next.notice).toBe('none');

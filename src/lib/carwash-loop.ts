@@ -63,6 +63,8 @@ interface Shot {
   notice?: CarWashOwnerNotice;
   /** Минуты простоя, которые монитор бокса показывает прямо сейчас. */
   idleNote?: number;
+  /** С этого шага монитор бокса показывает выполненную услугу. */
+  serviceLine?: boolean;
 }
 
 const SHOTS: Shot[] = [
@@ -271,6 +273,7 @@ const OTHER_SERVICE_SHOTS: Shot[] = [
     phase: 'correcting',
     title: 'Мойщик пробивает услугу',
     tone: 'progress',
+    serviceLine: true,
     message:
       'В CRM попадает не комплексная мойка, а короткая «мойка кузова». Система принимает выбор молча: подмену услуги сотрудник не видит.',
   },
@@ -350,26 +353,35 @@ const IDLE_BOX_SHOTS: Shot[] = [
       'Администратор подтверждает комплексную мойку и назначает исполнителя. Система считает, что бокс занят и работа идёт.',
   },
   {
-    end: 42,
+    end: 36,
     view: 'overview',
     phase: 'correcting',
     title: 'В боксе двадцать минут никого',
     tone: 'warning',
-    idleNote: IDLE_BOX.minutes,
     message:
-      'Машина стоит, ворота открыты, мойщик не подходит. Камера ведёт сессию и считает пустое время бокса — на мониторе это просто «бокс занят», треугольника нет.',
+      'Машина стоит, ворота открыты, мойщик не подходит. В боксе никто не работает — но визит идёт как обычно: статус успешный, треугольника на записи нет.',
   },
   {
-    end: 49,
+    end: 46,
+    view: 'hardware',
+    phase: 'evaluating',
+    title: 'Камера считает простой',
+    tone: 'warning',
+    idleNote: IDLE_BOX.minutes,
+    message:
+      'Node считает пустое время бокса и выводит его на монитор: двадцать минут без сотрудника. Именно это потом увидит собственник.',
+  },
+  {
+    end: 53,
     view: 'washing',
     phase: 'correcting',
     title: 'Сотрудник подошёл',
     tone: 'progress',
     message:
-      'Мойщик появился в боксе только сейчас и сразу начал мойку. Камера фиксирует момент начала работ — двадцать минут простоя остаются в истории визита.',
+      'Мойщик появился в боксе только сейчас и сразу начал мойку. Камера фиксирует момент начала работ — простой остаётся в истории визита.',
   },
   {
-    end: 57,
+    end: 60,
     view: 'washing',
     phase: 'correcting',
     title: 'Мойка в работе',
@@ -378,7 +390,7 @@ const IDLE_BOX_SHOTS: Shot[] = [
       'Сама услуга занимает десять минут. В боксе всё выглядит обычно: сессия идёт, время считается, статус визита успешный.',
   },
   {
-    end: 64,
+    end: 66,
     view: 'departure',
     phase: 'verifying',
     title: 'Выезд, сверка времени',
@@ -387,7 +399,7 @@ const IDLE_BOX_SHOTS: Shot[] = [
       'Машина выехала. Длительность сходится с временем в боксе — а вот двадцать минут до начала работ в неё не входят.',
   },
   {
-    end: 72,
+    end: 74,
     view: 'overview',
     phase: 'verifying',
     title: 'Проверьте, где был сотрудник',
@@ -408,7 +420,7 @@ const PROFILES: Record<CarWashTourKey, TourProfile> = {
     readUntil: 42,
     service: OTHER_SERVICE,
   },
-  'idle-box': { shots: IDLE_BOX_SHOTS, visit: 72, departAt: 64, readUntil: 69, idle: IDLE_BOX },
+  'idle-box': { shots: IDLE_BOX_SHOTS, visit: 74, departAt: 66, readUntil: 71, idle: IDLE_BOX },
 };
 
 /** Длительность одного визита выбранного сценария в секундах стенного времени. */
@@ -525,6 +537,7 @@ export function carwashLoop(elapsedSeconds: number, scenario: CarWashTourKey = '
     service: profile.service ?? null,
     idle: profile.idle ?? null,
     idleNote: shot.idleNote ?? null,
+    serviceLine: shot.serviceLine ?? false,
     focusBox,
     cars,
     visit,

@@ -394,7 +394,8 @@ export default function CarWashScene(props: CarWashSceneProps) {
           car.alert !== 'none' || (car.opacity > 0 && car.z < L.frontZ) ? car.plate : null,
         ),
         tour?.cars.map((car) => car.alert),
-        tour?.service
+        // Услуга появляется на мониторе только после того, как мойщик её пробивает.
+        tour?.service && tour.serviceLine
           ? {
               label: tour.service.performedShort,
               minutes: tour.service.performedMinutes,

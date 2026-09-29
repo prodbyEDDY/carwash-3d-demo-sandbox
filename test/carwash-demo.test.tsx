@@ -247,7 +247,9 @@ describe('continuous carwash demonstration', () => {
     expect(live.textContent).toContain('В боксе двадцать минут никого');
     expect(within(dialog).queryByLabelText('Пуш собственнику на телефон')).toBeNull();
     expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
-    act(() => vi.advanceTimersByTime(14_000));
+    act(() => vi.advanceTimersByTime(12_000));
+    expect(live.textContent).toContain('Камера считает простой');
+    act(() => vi.advanceTimersByTime(4_000));
     expect(live.textContent).toContain('Сотрудник подошёл');
     act(() => vi.advanceTimersByTime(6_000));
     expect(live.textContent).toContain('Мойка в работе');
@@ -255,7 +257,7 @@ describe('continuous carwash demonstration', () => {
     expect(live.textContent).toContain('Проверьте, где был сотрудник');
     const push = within(dialog).getByLabelText('Пуш собственнику на телефон');
     expect(push.textContent).toContain('Где был сотрудник?');
-    expect(push.textContent).toMatch(/простояла 20 минут без сотрудника/);
+    expect(push.textContent).toMatch(/простояла 20 минут без сотрудника.*за 10 минут/);
     // Сигнал уходит собственнику, а не службе контроля.
     expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
   });

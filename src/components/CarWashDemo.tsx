@@ -303,7 +303,7 @@ function CarWashOwnerPhone({
               <p className="carwash-phone-title">Где был сотрудник?</p>
               <p className="carwash-phone-body">
                 {where} — простояла {idle?.minutes ?? 20} минут без сотрудника, услугу оказали
-                только потом
+                только потом, за {idle?.washMinutes ?? 10} минут
               </p>
             </>
           ) : (
