@@ -20,7 +20,7 @@ import {
   type CarWashView,
 } from '../lib/carwash-layout';
 import { cameraEase } from '../lib/carwash-presentation';
-import { carwashLoop, TOUR_SPEED } from '../lib/carwash-loop';
+import { carwashLoop, TOUR_SPEED, type CarWashTourKey } from '../lib/carwash-loop';
 import type {
   CarWashHotspotId,
   CarWashPhase,
@@ -42,6 +42,8 @@ interface CarWashSceneProps {
   eventTitle?: string;
   eventTone?: string;
   tourClock?: RefObject<number>;
+  /** Какой сценарий играет тур; сцена читает тот же цикл, что и панель. */
+  scenario?: CarWashTourKey;
 }
 export interface CarWashSceneOverlay {
   id: CarWashHotspotId;
@@ -362,7 +364,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
       previous = now;
       const p = live.current,
         count = Math.round(p.values.boxes);
-      const tour = p.tourClock ? carwashLoop(p.tourClock.current) : null;
+      const tour = p.tourClock ? carwashLoop(p.tourClock.current, p.scenario) : null;
       model.layout(count);
       const focusIndex = Math.min(count - 1, Math.max(0, p.focusBox - 1)),
         stage = p.view ?? sceneStage(p.phase, p.activeHotspot);
@@ -386,7 +388,19 @@ export default function CarWashScene(props: CarWashSceneProps) {
           }[stage],
         p.focusBox,
         p.eventTone,
-        tour?.cars.map((car) => car.opacity > 0 && car.z < L.frontZ ? car.plate : null),
+        // Пока визит помечен треугольником, номер остаётся в строке монитора даже
+        // после выезда машины: запись в системе живёт дольше, чем бокс занят.
+        tour?.cars.map((car) =>
+          car.alert !== 'none' || (car.opacity > 0 && car.z < L.frontZ) ? car.plate : null,
+        ),
+        tour?.cars.map((car) => car.alert),
+        tour?.service
+          ? {
+              label: tour.service.performedShort,
+              minutes: tour.service.performedMinutes,
+              price: tour.service.performedPrice,
+            }
+          : null,
       );
       const requested = p.view ?? (p.guidedCamera ? stage : 'overview'),
         key = `${requested}:${p.focusBox}:${count}`;

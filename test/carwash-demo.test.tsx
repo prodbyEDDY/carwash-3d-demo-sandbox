@@ -64,12 +64,15 @@ describe('continuous carwash demonstration', () => {
     expect(within(dialog).getByLabelText('Этапы визита машины')).toBeTruthy();
     expect(within(dialog).getAllByText(/Иллюстративная симуляция/)).toHaveLength(1);
   });
-  it('offers only the implemented base scenario in the scenarios select', () => {
+  it('offers exactly the two scenarios that are implemented in 3D', () => {
     const dialog = openCarWash();
     fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
     const options = within(dialog).getAllByRole('option');
-    expect(options).toHaveLength(1);
-    expect(options[0]!.textContent).toBe('Обычный визит');
+    expect(options.map((item) => item.textContent)).toEqual([
+      'Обычный визит',
+      'Приехала машина не из списка',
+      'Оказана другая услуга',
+    ]);
   });
   it('waits for Запустить, then plays the base scenario and loops through every bay', () => {
     vi.useFakeTimers();
@@ -122,8 +125,7 @@ describe('continuous carwash demonstration', () => {
     act(() => vi.advanceTimersByTime(20_000));
     expect(live.textContent).toBe('');
   });
-  it('does not skip the visit while hidden and resets after close/reopen', () => {
-    vi.useFakeTimers();
+  it('does not skip the visit while hidden and resets after close/reopen', () => {    vi.useFakeTimers();
     const dialog = openCarWash();
     fireEvent.click(within(dialog).getByTestId('demo-scene'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
@@ -143,5 +145,91 @@ describe('continuous carwash demonstration', () => {
     expect(live.textContent).toBe('');
     fireEvent.click(within(reopened).getByRole('button', { name: 'Запустить' }));
     expect(live.textContent).toContain('Бокс 2');
+  });
+  it('играет выбранный сценарий «машина не из списка» и показывает пуш собственнику', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Приехала машина не из списка' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    const live = within(dialog).getByRole('status', { name: 'События автомойки' });
+    // Начало визита общее с обычным сценарием.
+    expect(live.textContent).toContain('Машина заезжает');
+    act(() => vi.advanceTimersByTime(9_600));
+    expect(live.textContent).toContain('В системе такого номера нет');
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(live.textContent).toContain('Визит добавлен с предупреждением');
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(live.textContent).toContain('Мойка в работе');
+    // Пока оплата не внесена, собственнику уходит пуш.
+    act(() => vi.advanceTimersByTime(11_000));
+    expect(live.textContent).toContain('Оплата не внесена');
+    const push = within(dialog).getByLabelText('Пуш собственнику на телефон');
+    expect(push.textContent).toContain('Проверьте мойку');
+    expect(push.textContent).toMatch(/Бокс \d · \d{2}:\d{2} · \d{3} [A-Z]{3} \d{2} — оплата не внесена/);
+  });
+  it('Сбросить гасит пуш и возвращает обычный визит', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Приехала машина не из списка' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    act(() => vi.advanceTimersByTime(36_000));
+    expect(within(dialog).queryByLabelText('Пуш собственнику на телефон')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Сбросить' }));
+    expect(within(dialog).queryByLabelText('Пуш собственнику на телефон')).toBeNull();
+    expect(within(dialog).getByRole('status', { name: 'События автомойки' }).textContent).toBe('');
+  });
+  it('показывает терминал службы контроля, не выдавая ошибку сотруднику', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Оказана другая услуга' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    const live = within(dialog).getByRole('status', { name: 'События автомойки' });
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
+    expect(live.textContent).toContain('Оплата прошла');
+    act(() => vi.advanceTimersByTime(6_000));
+    const terminal = within(dialog).getByLabelText('Терминал службы контроля');
+    expect(terminal.textContent).toContain('Комплексная мойка');
+    expect(terminal.textContent).toContain('Мойка кузова');
+    expect(terminal.textContent).toContain('60 мин');
+    expect(terminal.textContent).toContain('20 мин');
+    expect(terminal.textContent).toContain('вероятная кража услуги');
+    // Сотруднику и собственнику система ничего не сообщает: ни пуша, ни флага.
+    expect(within(dialog).queryByLabelText('Пуш собственнику на телефон')).toBeNull();
+    expect(live.textContent).toContain('Сигнал в службу контроля');
+  });
+  it('терминал принимает сигнал в работу и показывает, что видит сотрудник', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Оказана другая услуга' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    act(() => vi.advanceTimersByTime(36_000));
+    const terminal = within(dialog).getByLabelText('Терминал службы контроля');
+    expect(within(terminal).queryByText('Ошибок нет')).toBeNull();
+    fireEvent.click(within(terminal).getByRole('button', { name: 'Принять в работу' }));
+    expect(within(terminal).getByRole('button', { name: 'В работе' })).toBeTruthy();
+    fireEvent.click(within(terminal).getByRole('button', { name: 'Что видит сотрудник' }));
+    expect(within(terminal).getByText('Ошибок нет')).toBeTruthy();
+    expect(within(terminal).getByText(/Мойка кузова · 20 мин/)).toBeTruthy();
+  });
+  it('Сбросить убирает терминал', () => {
+    vi.useFakeTimers();
+    const dialog = openCarWash();
+    fireEvent.click(within(dialog).getByTestId('demo-scene'));
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Сценарии' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Оказана другая услуга' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Запустить' }));
+    act(() => vi.advanceTimersByTime(36_000));
+    expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Сбросить' }));
+    expect(within(dialog).queryByLabelText('Терминал службы контроля')).toBeNull();
   });
 });
