@@ -6,6 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   loadVehicleAsset,
   vehicleInstance,
+  vehicleWheels,
   disposeVehicleAsset,
   updateVehiclePlate,
   vehicleFader,
@@ -136,6 +137,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
     const assetAbort = new AbortController();
     let assetReady = false;
     const vehicleInstances: THREE.Group[] = [];
+    const wheelsByInstance: THREE.Object3D[][] = [];
     const fadeFallbacks = model.bays.map((bay) => vehicleFader(bay.car.group));
     const fadeVehicles: Array<(opacity: number) => void> = [];
     void loadVehicleAsset(assetAbort.signal)
@@ -153,6 +155,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
           });
           const instance = vehicleInstance(template, index === 0);
           vehicleInstances[index] = instance;
+          wheelsByInstance[index] = vehicleWheels(instance);
           fadeVehicles[index] = vehicleFader(instance, false);
           bay.car.group.add(instance);
           // The hidden template is cloned only for resource sharing; instances render normally.
@@ -450,9 +453,13 @@ export default function CarWashScene(props: CarWashSceneProps) {
         bay.car.group.rotation.y = traffic || hero ? pose.rotationY : 0;
         fadeFallbacks[i]?.(traffic?.opacity ?? 1);
         fadeVehicles[i]?.(traffic?.opacity ?? 1);
+        // Sign follows travel: the wheel rolls backwards for the axle, not with it.
         bay.car.wheels.forEach((wheel) => {
-          wheel.rotation.x += (pose.z - oldZ) / 0.37;
+          wheel.rotation.x -= (pose.z - oldZ) / 0.37;
         });
+        for (const wheel of wheelsByInstance[i] ?? []) {
+          wheel.rotation.x -= (pose.z - oldZ) / 0.37;
+        }
         const reading =
           traffic?.reading ??
           (hero && (stage === 'recognition' || stage === 'departure') && !preview);

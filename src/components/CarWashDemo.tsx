@@ -3,11 +3,12 @@
 import dynamic from 'next/dynamic';
 import { CheckIcon, CameraIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DemoPanel,
   DemoSceneActions,
   DemoSceneHelp,
+  DemoScenarios,
   DemoStatusCard,
 } from './industry/DemoPanelUi';
 import { Card, CardContent } from './ui/card';
@@ -15,6 +16,8 @@ import { CARWASH_BASELINE } from '../lib/carwash-simulation';
 import { carwashLoop } from '../lib/carwash-loop';
 
 const CarWashScene = dynamic(() => import('./CarWashScene'), { ssr: false });
+
+const CARWASH_SCENARIO_ITEMS = ['normal-visit'] as const;
 
 export default function CarWashDemo({ open, onClose }: { open: boolean; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -37,11 +40,38 @@ export default function CarWashDemo({ open, onClose }: { open: boolean; onClose:
 function CarWashTour({ onClose }: { onClose: () => void }) {
   const t = useTranslations('home.industries');
   const elapsed = useRef(0);
-  const [frame, setFrame] = useState(() => carwashLoop(0));
+  const [tour, setTour] = useState(() => carwashLoop(0));
+  const [running, setRunning] = useState(false);
   const [ready, setReady] = useState(false);
   const [resetViewToken, setResetViewToken] = useState(0);
+  // Состояние до сценариев: сцена на месте, машины стоят, ни один шаг не начат.
+  const idle = useMemo(
+    () => ({
+      ...carwashLoop(0),
+      key: 'idle',
+      phase: 'stable' as const,
+      view: 'overview' as const,
+      title: t('carwashDemo.status.stable'),
+      message: t('carwashDemo.status.stable'),
+      tone: 'success' as const,
+    }),
+    [t],
+  );
+  const frame = running ? tour : idle;
+  // Базовый сценарий один и уже был: Запустить перематывает его в начало.
+  const runScenario = () => {
+    elapsed.current = 0;
+    setTour(carwashLoop(0));
+    setRunning(true);
+  };
+  const resetScenario = () => {
+    elapsed.current = 0;
+    setTour(carwashLoop(0));
+    setRunning(false);
+    setResetViewToken((value) => value + 1);
+  };
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !running) return;
     let last = performance.now();
     let key = '';
     const timer = window.setInterval(() => {
@@ -51,7 +81,7 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
       const next = carwashLoop(elapsed.current);
       if (next.key !== key) {
         key = next.key;
-        setFrame(next);
+        setTour(next);
       }
     }, 16);
     const visibility = () => {
@@ -62,7 +92,7 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', visibility);
     };
-  }, [ready]);
+  }, [ready, running]);
   return (
     <div className="farm-demo-shell">
       <h2 className="sr-only" id="carwash-dialog-title">
@@ -126,7 +156,7 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
               aria-live="polite"
               aria-atomic="true"
             >
-              {ready && <CarWashNotification event={frame} />}
+              {ready && running && <CarWashNotification event={frame} />}
             </div>
           </div>
         </div>
@@ -141,6 +171,18 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
               correcting: t('carwashDemo.phases.correcting'),
               verifying: t('carwashDemo.phases.verifying'),
             }}
+          />
+          <DemoScenarios
+            title={t('carwashDemo.scenariosTitle')}
+            runLabel={t('carwashDemo.runScenario')}
+            resetLabel={t('carwashDemo.reset')}
+            active={null}
+            items={CARWASH_SCENARIO_ITEMS.map((key) => ({
+              key,
+              title: t(`carwashDemo.scenarios.${key}.title`),
+            }))}
+            onRun={runScenario}
+            onReset={resetScenario}
           />
           <Card className="gap-0 py-0">
             <CardContent className="grid gap-4 p-4">
