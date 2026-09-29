@@ -498,7 +498,9 @@ export default function CarWashScene(props: CarWashSceneProps) {
         bay.worker.visible = traffic ? washing : hero || background;
         // Поза мойщика: сбоку по умолчанию, за кормой машины — когда моют кузов.
         // Машина въезжает задним ходом, поэтому корма смотрит в сторону въезда (+Z).
-        const rear = tour?.attendant === 'rear',
+        // Поза достаётся только боксу-герою: соседние боксы моют сбоку, подмена
+        // услуги — частный случай одного бокса, а не всего зала.
+        const rear = hero && tour?.attendant === 'rear',
           stride = washing && !reducedMotion ? Math.sin(now * 0.00065 * TOUR_SPEED) * 0.45 : 0.4;
         bay.worker.rotation.y = rear ? Math.PI / 2 : 0;
         bay.worker.position.set(
