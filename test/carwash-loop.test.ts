@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CARWASH_LAYOUT as L } from '../src/lib/carwash-layout';
-import { carwashLoop, carwashTourSeconds, TOUR_SPEED, VISIT_SECONDS } from '../src/lib/carwash-loop';
+import { carwashAttendantPose, carwashLoop, carwashTourSeconds, TOUR_SPEED, VISIT_SECONDS } from '../src/lib/carwash-loop';
 
 describe('continuous carwash tour', () => {
   it('starts with box 1 leaving, box 3 occupied and box 2 arriving', () => {

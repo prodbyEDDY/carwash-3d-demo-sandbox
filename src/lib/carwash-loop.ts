@@ -433,6 +433,11 @@ const PROFILES: Record<CarWashTourKey, TourProfile> = {
   'idle-box': { shots: IDLE_BOX_SHOTS, visit: 74, departAt: 66, readUntil: 71, idle: IDLE_BOX },
 };
 
+/** Поза мойщика для сценария — ракурс камеры зависит от неё не меньше, чем сама фигура. */
+export function carwashAttendantPose(scenario: CarWashTourKey | undefined): CarWashAttendantPose {
+  return PROFILES[scenario ?? 'normal-visit']?.attendant ?? 'side';
+}
+
 /** Длительность одного визита выбранного сценария в секундах стенного времени. */
 export function carwashTourSeconds(key: CarWashTourKey) {
   return PROFILES[key].visit / TOUR_SPEED;
