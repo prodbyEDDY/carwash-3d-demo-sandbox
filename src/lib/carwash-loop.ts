@@ -36,6 +36,12 @@ export interface CarWashIdle {
   washMinutes: number;
 }
 
+/**
+ * Поза мойщика у машины. `side` — работает сбоку, как в обычном визите;
+ * `rear` — встаёт за корму и моет кузов, когда пробита короткая услуга.
+ */
+export type CarWashAttendantPose = 'side' | 'rear';
+
 /** Заказ и факт по услуге: что оплачивал клиент и что пробили по факту. */
 export interface CarWashService {
   ordered: string;
@@ -221,6 +227,8 @@ interface TourProfile {
   service?: CarWashService;
   /** Простой бокса по сценарию; в остальных визитах его нет. */
   idle?: CarWashIdle;
+  /** Поза мойщика; по умолчанию он работает сбоку. */
+  attendant?: CarWashAttendantPose;
 }
 
 /**
@@ -419,6 +427,8 @@ const PROFILES: Record<CarWashTourKey, TourProfile> = {
     departAt: 37,
     readUntil: 42,
     service: OTHER_SERVICE,
+    // Короткая услуга — это кузов, поэтому мойщик встаёт за корму, а не сбоку.
+    attendant: 'rear',
   },
   'idle-box': { shots: IDLE_BOX_SHOTS, visit: 74, departAt: 66, readUntil: 71, idle: IDLE_BOX },
 };
@@ -538,6 +548,7 @@ export function carwashLoop(elapsedSeconds: number, scenario: CarWashTourKey = '
     idle: profile.idle ?? null,
     idleNote: shot.idleNote ?? null,
     serviceLine: shot.serviceLine ?? false,
+    attendant: profile.attendant ?? 'side',
     focusBox,
     cars,
     visit,

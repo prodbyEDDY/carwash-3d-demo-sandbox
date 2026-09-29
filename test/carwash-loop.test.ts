@@ -110,6 +110,14 @@ describe('сценарий «оказана другая услуга»', () => 
     expect(other(15).title).toBe('Мойщик пробивает услугу');
     expect(carwashLoop(15).serviceLine).toBe(false);
   });
+  it('ставит мойщика за корму: кузов моют сзади, а не сбоку', () => {
+    expect(other(0).attendant).toBe('rear');
+    expect(other(20).attendant).toBe('rear');
+    // В остальных сценариях мойщик остаётся сбоку — поза не должна поехать глобально.
+    expect(carwashLoop(0).attendant).toBe('side');
+    expect(carwashLoop(0, 'unknown-car').attendant).toBe('side');
+    expect(carwashLoop(0, 'idle-box').attendant).toBe('side');
+  });
   it('сотруднику не показывает ошибку: ни треугольника, ни пуша за весь визит', () => {
     const alerts = [0, 8, 15, 20, 24, 30, 34, 40].map((wall) => other(wall).alert);
     expect(alerts).toEqual(Array<string>(8).fill('none'));

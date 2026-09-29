@@ -488,9 +488,15 @@ export default function CarWashScene(props: CarWashSceneProps) {
         bay.scanner.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(now * 0.003) * 0.025);
         const washing = traffic?.washing ?? (hero && stage === 'washing' && !preview);
         bay.worker.visible = traffic ? washing : hero || background;
-        bay.worker.position.z =
-          L.parkZ +
-          (washing && !reducedMotion ? Math.sin(now * 0.00065 * TOUR_SPEED) * 0.45 : 0.4);
+        // Поза мойщика: сбоку по умолчанию, за кормой машины — когда моют кузов.
+        const rear = tour?.attendant === 'rear',
+          stride = washing && !reducedMotion ? Math.sin(now * 0.00065 * TOUR_SPEED) * 0.45 : 0.4;
+        bay.worker.rotation.y = rear ? -Math.PI / 2 : 0;
+        bay.worker.position.set(
+          rear ? stride : -1.68,
+          0.06,
+          rear ? L.parkZ - L.carLength / 2 - 0.52 : L.parkZ + stride,
+        );
         bay.workerUpper.rotation.y =
           washing && !reducedMotion ? Math.sin(now * 0.001) * 0.075 : 0;
         bay.workerUpper.rotation.z = washing ? -0.045 : 0;
