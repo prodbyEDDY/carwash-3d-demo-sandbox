@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import { buildAttendant } from './attendant';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { CARWASH_LAYOUT as L, bayCenter } from '../../lib/carwash-layout';
+import type { CarWashAlert } from '../../lib/carwash-loop';
 import { PALETTE as P, box, buildVehicle, label, material, mesh, rod, tube } from './model-kit';
+
+/** Жёлтый треугольник разбора на мониторе; красный для неоплаты берётся из палитры. */
+const AMBER = '#d9a13b';
+/** Сумма в канцелярском виде: 1 900 ₽. На мониторе она идёт зелёным, ошибки не показывает. */
+const money = (value: number) => `${value.toLocaleString('ru-RU').replace(/[\s\u00a0]/g, ' ')} ₽`;
 
 function tag(object: THREE.Object3D, hotspot: string) {
   object.userData.hotspot = hotspot;
@@ -379,9 +385,42 @@ export function buildCarWash() {
   let screenKey = '';
   const screenTexture = new THREE.CanvasTexture(screenCanvas);
   screenTexture.colorSpace = THREE.SRGBColorSpace;
-  function updateMonitor(plate: string, status: string, focusBox: number, tone = 'info', occupied?: Array<string | null>) {
+  /**
+   * Треугольник с восклицательным знаком — тот самый флаг на записи визита.
+   * Жёлтый — визит ждёт разбора, красный — оплата не внесена.
+   */
+  function alertBadge(context: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+    context.save();
+    context.lineJoin = 'round';
+    context.strokeStyle = color;
+    context.fillStyle = color;
+    context.lineWidth = size * 0.16;
+    context.beginPath();
+    context.moveTo(x, y - size * 0.6);
+    context.lineTo(x + size * 0.62, y + size * 0.48);
+    context.lineTo(x - size * 0.62, y + size * 0.48);
+    context.closePath();
+    context.stroke();
+    context.fillRect(x - size * 0.06, y - size * 0.26, size * 0.12, size * 0.36);
+    context.beginPath();
+    context.arc(x, y + size * 0.3, size * 0.08, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+  function updateMonitor(
+    plate: string,
+    status: string,
+    focusBox: number,
+    tone = 'info',
+    occupied?: Array<string | null>,
+    alerts?: Array<CarWashAlert>,
+    service?: { label: string; minutes: number; price: number } | null,
+    idleNote?: number | null,
+  ) {
     const plates = occupied ?? Array.from({ length: 3 }, (_, i) => i + 1 === focusBox ? plate : null);
-    const key = `${plates.join(':')}:${status}:${focusBox}:${tone}`;
+    const key = `${plates.join(':')}:${status}:${focusBox}:${tone}:${alerts?.join(':') ?? ''}:${
+      service ? `${service.label}:${service.minutes}:${service.price}` : ''
+    }:${idleNote ?? ''}`;
     if (key === screenKey) return;
     screenKey = key;
     screenContext.fillStyle = P.white;
@@ -398,20 +437,45 @@ export function buildCarWash() {
       { length: 3 },
       (_, i) => `${String(i + 1).padStart(2, '0')}   ${plates[i] ?? 'AVAILABLE'}`,
     ).forEach((text, index) => {
+      const alert = alerts?.[index] ?? 'none';
+      const flagged = alert !== 'none';
+      const rowY = 182 + index * 102;
       screenContext.fillStyle = index + 1 === focusBox ? '#e0eaf3' : '#efefeb';
-      screenContext.fillRect(36, 182 + index * 102, 952, 84);
+      screenContext.fillRect(36, rowY, 952, 84);
       screenContext.fillStyle = P.graphite;
       screenContext.font = '400 30px Arial';
-      screenContext.fillText(text, 65, 233 + index * 102);
-      screenContext.fillStyle = plates[index] ? P.blue : P.green;
-      screenContext.fillRect(770, 203 + index * 102, 170, 42);
+      screenContext.fillText(text, 65, rowY + 51);
+      if (flagged) {
+        alertBadge(screenContext, 690, rowY + 42, 44, alert === 'unpaid' ? P.red : AMBER);
+      }
+      const label = alert === 'unpaid' ? 'UNPAID' : alert === 'review' ? 'REVIEW' : plates[index] ? 'ACTIVE' : 'READY';
+      screenContext.fillStyle = alert === 'unpaid' ? P.red : alert === 'review' ? AMBER : plates[index] ? P.blue : P.green;
+      screenContext.fillRect(770, rowY + 21, 170, 42);
       screenContext.fillStyle = P.white;
       screenContext.font = '400 20px Arial';
-      screenContext.fillText(plates[index] ? 'ACTIVE' : 'READY', 784, 231 + index * 102);
+      screenContext.fillText(label, 784, rowY + 49);
     });
     screenContext.fillStyle = tone === 'warning' ? P.red : tone === 'success' ? P.green : P.blue;
     screenContext.font = '400 24px Arial';
     screenContext.fillText(status, 42, 564);
+    // Услуга и фактическое время в боксе. Это то, что видит сотрудник: подмену услуги
+    // он заметить не может — на мониторе всё ровно так же спокойно, как при обычном визите.
+    if (service) {
+      screenContext.fillStyle = P.graphite;
+      screenContext.font = '400 24px Arial';
+      screenContext.fillText(
+        `SERVICE  ${service.label} · ${service.minutes} MIN · ${money(service.price)}`,
+        42,
+        512,
+      );
+    }
+    // Простой бокса видно и сотруднику: камера честно считает пустое время, но в записи
+    // визита это ничем не выглядит — ни треугольника, ни смены статуса.
+    if (idleNote) {
+      screenContext.fillStyle = AMBER;
+      screenContext.font = '400 24px Arial';
+      screenContext.fillText(`BOX ${focusBox} · IDLE ${idleNote} MIN · NO STAFF`, 42, service ? 458 : 512);
+    }
     screenTexture.needsUpdate = true;
   }
   updateMonitor('559 BJV 05', 'LIVE MONITORING', 2);

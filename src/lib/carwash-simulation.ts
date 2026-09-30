@@ -26,7 +26,8 @@ export type CarWashScenarioKey =
   | 'no-order'
   | 'time-mismatch'
   | 'node-offline'
-  | 'back-to-back';
+  | 'back-to-back'
+  | 'unknown-car';
 export type CarWashPhase = IndustryPhase;
 export type CarWashHotspotId = 'node' | 'camera' | 'box' | 'entrance' | 'tablet' | 'washer';
 
@@ -292,6 +293,40 @@ const PLANS: Record<CarWashScenarioKey, CarWashScenarioPlan> = {
       board: [{ box: 2, status: 'free', plate: null, make: null, seconds: null, note: null }],
     },
   ]),
+
+  /**
+   * Машины нет в списке: номер не нашёлся в CRM, но визит всё равно ведётся до конца —
+   * сначала с жёлтым треугольником, а если оплата не внесена, с красным и пушем владельцу.
+   * Начало визита совпадает с обычным — расходится сценарий только после сверки номера.
+   */
+  'unknown-car': plan('Приехала машина не из списка', 2, [
+    {
+      phase: 'detecting', duration: READABLE_STEP_MS, hotspot: 'entrance',
+      message: 'Машина заехала в бокс 2, камера открыла сессию. В отличие от обычного визита, заранее никакого заказа на этот номер нет.',
+      board: [{ box: 2, status: 'busy', seconds: 0, note: 'Сессия открыта' }],
+    },
+    {
+      phase: 'evaluating', duration: READABLE_STEP_MS, hotspot: 'camera',
+      message: 'Камера прочитала номер, но сверка со списком клиентов ничего не нашла: в системе такого номера нет — машина не из списка, либо номер не совпадает с записью.',
+      board: [{ box: 2, plate: '728 AKM 02', make: 'BMW M4', note: 'Номера нет в CRM' }],
+    },
+    {
+      phase: 'correcting', duration: CORRECTION_STEP_MS, hotspot: 'washer',
+      message: 'Визит всё равно записан в журнал — с жёлтым треугольником. Мойку не срываем: мойщик моет машину, камера считает время в боксе.',
+      board: [{ box: 2, status: 'ordered', note: 'Жёлтый треугольник · мойка идёт' }],
+      notification: 'Бокс 2 · 728 AKM 02 · номера нет в системе',
+    },
+    {
+      phase: 'verifying', duration: READABLE_STEP_MS, hotspot: 'tablet',
+      message: 'Машина выехала, длительность сошлась. Осталась оплата: мойщик должен внести её в CRM, иначе визит не закроется.',
+      board: [{ box: 2, status: 'violation', note: 'Ждём оплату · треугольник жёлтый' }],
+      violations: 1,
+    },
+    {
+      phase: 'requires-attention', duration: 0, hotspot: 'box',
+      message: 'Оплаты нет: жёлтый треугольник стал красным, и пуш ушёл собственнику на телефон. Дальше работает человек — открыть визит и разобраться, чья это машина.',
+    },
+  ], true),
 };
 
 export function carwashScenarioPlan(key: CarWashScenarioKey): CarWashScenarioPlan {

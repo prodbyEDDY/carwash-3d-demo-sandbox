@@ -3,6 +3,111 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { PALETTE, label } from './model-kit';
 
+const WHEEL_NODE = 'WHeelsandrims_2';
+const WHEEL_PIVOT = 'vehicle-wheel-pivot';
+/** Upstream names the tyre material a rim; the rubber is what we use as the axle reference. */
+const TYRE_MATERIAL = 'm8rim001';
+
+function corner(point: THREE.Vector3) {
+  return `${point.x >= 0 ? 'r' : 'l'}${point.z >= 0 ? 'f' : 'b'}`;
+}
+
+/**
+ * The published asset merges all four wheels into three meshes, so the axles are baked in
+ * and the corners cannot turn. Split every merged mesh per corner around the tyre, which is
+ * rotationally symmetric, and hang each corner on its own pivot at the axle.
+ *
+ * Corners are read in world space, because the merged geometry sits entirely inside one
+ * octant of the wheel node's own space and its signs tell nothing apart. The tyre's axle is
+ * the node's X axis, which is also the car's, so a pivot spins by its own rotation.x.
+ */
+function splitVehicleWheels(wheels: THREE.Object3D) {
+  const parts = wheels.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh);
+  const tyre = parts.find((part) => {
+    const material = Array.isArray(part.material) ? part.material[0] : part.material;
+    return material?.name.toLowerCase().includes(TYRE_MATERIAL);
+  });
+  if (!tyre) return;
+  const toNode = wheels.matrixWorld.clone().invert();
+  const boxes = new Map<string, THREE.Box3>();
+  const point = new THREE.Vector3();
+  const tyrePosition = tyre.geometry.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < tyrePosition.count; i++) {
+    point.fromBufferAttribute(tyrePosition, i).applyMatrix4(tyre.matrixWorld);
+    const box = boxes.get(corner(point)) ?? new THREE.Box3();
+    box.expandByPoint(point);
+    boxes.set(corner(point), box);
+  }
+  if (boxes.size < 4) return;
+  const centres = new Map(
+    [...boxes].map(([key, box]) => [
+      key,
+      box.getCenter(new THREE.Vector3()).applyMatrix4(toNode),
+    ]),
+  );
+  const pivots = new Map(
+    [...centres].map(([key, centre]) => {
+      const pivot = new THREE.Object3D();
+      pivot.name = WHEEL_PIVOT;
+      pivot.position.copy(centre);
+      wheels.add(pivot);
+      return [key, pivot];
+    }),
+  );
+
+  const normalMatrix = new THREE.Matrix3();
+  for (const part of parts) {
+    const index = part.geometry.index;
+    const position = part.geometry.attributes.position as THREE.BufferAttribute;
+    const normal = part.geometry.attributes.normal as THREE.BufferAttribute | undefined;
+    const count = index ? index.count : position.count;
+    normalMatrix.getNormalMatrix(part.matrix);
+    const triangles = new Map<string, number[]>();
+    const centroid = new THREE.Vector3();
+    for (let i = 0; i < count; i += 3) {
+      centroid.set(0, 0, 0);
+      for (let k = 0; k < 3; k++) {
+        const vertex = index ? index.getX(i + k) : i + k;
+        centroid.add(point.fromBufferAttribute(position, vertex).applyMatrix4(part.matrixWorld));
+      }
+      const list = triangles.get(corner(centroid)) ?? [];
+      for (let k = 0; k < 3; k++) list.push(index ? index.getX(i + k) : i + k);
+      triangles.set(corner(centroid), list);
+    }
+    for (const [key, list] of triangles) {
+      const pivot = pivots.get(key);
+      if (!pivot) continue;
+      const remap = new Map<number, number>();
+      const centre = centres.get(key)!;
+      const outPosition: number[] = [];
+      const outNormal: number[] = [];
+      const outIndex: number[] = [];
+      for (const vertex of list) {
+        remap.set(vertex, outPosition.length / 3);
+        outPosition.push(
+          ...point.fromBufferAttribute(position, vertex).applyMatrix4(part.matrix).sub(centre).toArray(),
+        );
+        if (normal) {
+          outNormal.push(
+            ...point.fromBufferAttribute(normal, vertex).applyMatrix3(normalMatrix).normalize().toArray(),
+          );
+        }
+      }
+      for (const vertex of list) outIndex.push(remap.get(vertex)!);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(outPosition, 3));
+      if (outNormal.length)
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(outNormal, 3));
+      geometry.setIndex(outIndex);
+      const mesh = new THREE.Mesh(geometry, part.material);
+      mesh.name = `${part.name}-${key}`;
+      pivot.add(mesh);
+    }
+    part.removeFromParent();
+    part.geometry.dispose();
+  }
+}
+
 /** Local CC BY asset; attribution and derivation are in public/models/carwash. */
 export async function loadVehicleAsset(signal: AbortSignal) {
   const response = await fetch('/models/carwash/vehicle.glb', { signal });
@@ -18,6 +123,11 @@ export async function loadVehicleAsset(signal: AbortSignal) {
   const scale = 4.85 / size.z;
   source.scale.multiplyScalar(scale);
   source.position.set(-centre.x * scale, -bounds.min.y * scale + 0.035, -centre.z * scale);
+  const wheels = source.getObjectByName(WHEEL_NODE);
+  if (wheels) {
+    source.updateMatrixWorld(true);
+    splitVehicleWheels(wheels);
+  }
   const template = new THREE.Group();
   template.add(source);
   if (signal.aborted) {
@@ -26,6 +136,21 @@ export async function loadVehicleAsset(signal: AbortSignal) {
   }
   return template;
 }
+
+/** Axle pivots of a vehicle instance, cloned from the template, one per corner. */
+export function vehicleWheels(root: THREE.Object3D) {
+  const wheels: THREE.Object3D[] = [];
+  root.traverse((object) => {
+    if (object.name === WHEEL_PIVOT) wheels.push(object);
+  });
+  return wheels;
+}
+
+const FRONT_PLATE_Y = 0.53;
+const REAR_PLATE_Y = 0.87;
+const REAR_PLATE_Z = -2.393;
+const PLATE_WIDTH = 0.53;
+const PLATE_HEIGHT = 0.115;
 
 export function vehicleInstance(template: THREE.Group, white = false) {
   const instance = template.clone(true);
@@ -75,16 +200,21 @@ export function vehicleInstance(template: THREE.Group, white = false) {
       : style(object.material);
   });
   for (const z of [-2.43, 2.43]) {
+    const rear = z < 0;
     const plate = label(
       white ? '728 AKM 02' : '559 BJV 05',
-      0.53,
-      0.115,
+      PLATE_WIDTH,
+      PLATE_HEIGHT,
       PALETTE.white,
       PALETTE.black,
     );
-    plate.position.set(0, 0.53, z);
     plate.name = 'session-license-plate';
-    if (z < 0) plate.rotation.y = Math.PI;
+    if (rear) {
+      plate.position.set(0, REAR_PLATE_Y, REAR_PLATE_Z);
+      plate.rotation.y = Math.PI;
+    } else {
+      plate.position.set(0, FRONT_PLATE_Y, z);
+    }
     instance.add(plate);
   }
   return instance;

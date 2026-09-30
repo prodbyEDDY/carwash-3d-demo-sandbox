@@ -1,20 +1,50 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { CheckIcon, CameraIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import {
+  CheckIcon,
+  CameraIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DemoPanel,
   DemoSceneActions,
   DemoSceneHelp,
+  DemoScenarios,
   DemoStatusCard,
 } from './industry/DemoPanelUi';
 import { Card, CardContent } from './ui/card';
 import { CARWASH_BASELINE } from '../lib/carwash-simulation';
-import { carwashLoop } from '../lib/carwash-loop';
+import {
+  carwashLoop,
+  type CarWashIdle,
+  type CarWashOwnerNotice,
+  type CarWashService,
+  type CarWashTourKey,
+} from '../lib/carwash-loop';
 
 const CarWashScene = dynamic(() => import('./CarWashScene'), { ssr: false });
+
+const CARWASH_SCENARIO_ITEMS: CarWashTourKey[] = [
+  'normal-visit',
+  'unknown-car',
+  'other-service',
+  'idle-box',
+];
+
+/** Время визита для пуша: туманный старт в середине дня плюс ход тура. */
+const visitClock = (seconds: number) => {
+  const total = 13 * 3600 + 7 * 60 + Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600) % 24;
+  const minutes = Math.floor((total % 3600) / 60);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+/** Сумма в канцелярском виде: 1 900 ₽. */
+const sum = (value: number) => `${value.toLocaleString('ru-RU').replace(/[\s ]/g, ' ')} ₽`;
 
 export default function CarWashDemo({ open, onClose }: { open: boolean; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -37,21 +67,52 @@ export default function CarWashDemo({ open, onClose }: { open: boolean; onClose:
 function CarWashTour({ onClose }: { onClose: () => void }) {
   const t = useTranslations('home.industries');
   const elapsed = useRef(0);
-  const [frame, setFrame] = useState(() => carwashLoop(0));
+  const [scenario, setScenario] = useState<CarWashTourKey>('normal-visit');
+  const [tour, setTour] = useState(() => carwashLoop(0));
+  const [running, setRunning] = useState(false);
   const [ready, setReady] = useState(false);
   const [resetViewToken, setResetViewToken] = useState(0);
+  // Состояние до сценариев: сцена на месте, машины стоят, ни один шаг не начат.
+  const idle = useMemo(
+    () => ({
+      ...carwashLoop(0),
+      key: 'idle',
+      phase: 'stable' as const,
+      view: 'overview' as const,
+      title: t('carwashDemo.status.stable'),
+      message: t('carwashDemo.status.stable'),
+      tone: 'success' as const,
+    }),
+    [t],
+  );
+  const frame = running ? tour : idle;
+  // Выбранный сценарий — единственный источник истины: и панель, и сцена читают один цикл.
+  const runScenario = (key: string) => {
+    const next = (CARWASH_SCENARIO_ITEMS.find((item) => item === key) ?? 'normal-visit');
+    elapsed.current = 0;
+    setScenario(next);
+    setTour(carwashLoop(0, next));
+    setRunning(true);
+  };
+  const resetScenario = () => {
+    elapsed.current = 0;
+    setScenario('normal-visit');
+    setTour(carwashLoop(0));
+    setRunning(false);
+    setResetViewToken((value) => value + 1);
+  };
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !running) return;
     let last = performance.now();
     let key = '';
     const timer = window.setInterval(() => {
       const now = performance.now();
       if (!document.hidden) elapsed.current += (now - last) / 1000;
       last = now;
-      const next = carwashLoop(elapsed.current);
+      const next = carwashLoop(elapsed.current, scenario);
       if (next.key !== key) {
         key = next.key;
-        setFrame(next);
+        setTour(next);
       }
     }, 16);
     const visibility = () => {
@@ -62,7 +123,7 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', visibility);
     };
-  }, [ready]);
+  }, [ready, running, scenario]);
   return (
     <div className="farm-demo-shell">
       <h2 className="sr-only" id="carwash-dialog-title">
@@ -90,6 +151,7 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
               eventTitle={frame.title}
               eventTone={frame.tone}
               tourClock={elapsed}
+              scenario={scenario}
             />
             {!ready && (
               <div className="farm-scene-loading">
@@ -126,8 +188,25 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
               aria-live="polite"
               aria-atomic="true"
             >
-              {ready && <CarWashNotification event={frame} />}
+              {ready && running && <CarWashNotification event={frame} />}
             </div>
+            {ready && running && frame.notice !== 'none' && (
+              <CarWashOwnerPhone
+                box={frame.focusBox}
+                clock={visitClock(elapsed.current)}
+                idle={frame.idle}
+                notice={frame.notice}
+                plate={frame.cars[frame.focusBox - 1]!.plate}
+              />
+            )}
+            {ready && running && frame.staffAlert === 'service-mismatch' && frame.service && (
+              <CarWashStaffTerminal
+                box={frame.focusBox}
+                clock={visitClock(elapsed.current)}
+                plate={frame.cars[frame.focusBox - 1]!.plate}
+                service={frame.service}
+              />
+            )}
           </div>
         </div>
         <DemoPanel disclaimer={t('carwashDemo.disclaimer')}>
@@ -141,6 +220,18 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
               correcting: t('carwashDemo.phases.correcting'),
               verifying: t('carwashDemo.phases.verifying'),
             }}
+          />
+          <DemoScenarios
+            title={t('carwashDemo.scenariosTitle')}
+            runLabel={t('carwashDemo.runScenario')}
+            resetLabel={t('carwashDemo.reset')}
+            active={null}
+            items={CARWASH_SCENARIO_ITEMS.map((key) => ({
+              key,
+              title: t(`carwashDemo.scenarios.${key}.title`),
+            }))}
+            onRun={runScenario}
+            onReset={resetScenario}
           />
           <Card className="gap-0 py-0">
             <CardContent className="grid gap-4 p-4">
@@ -178,6 +269,136 @@ function CarWashTour({ onClose }: { onClose: () => void }) {
   );
 }
 
+/**
+ * Макет телефона собственника: последний шаг сценария — и система пишет владельцу,
+ * чтобы он открыл журнал и разобрался. Пуш адресован человеку, поэтому выглядит
+ * как обычное уведомление телефона, а не как строка в CRM. Текст зависит от того,
+ * что именно пошло не так: не внесли оплату или бокс простоял без сотрудника.
+ */
+function CarWashOwnerPhone({
+  box,
+  clock,
+  idle,
+  notice,
+  plate,
+}: {
+  box: number;
+  clock: string;
+  idle: CarWashIdle | null;
+  notice: Exclude<CarWashOwnerNotice, 'none'>;
+  plate: string;
+}) {
+  const where = `Бокс ${box} · ${clock} · ${plate}`;
+  return (
+    <div className="carwash-phone" role="status" aria-label="Пуш собственнику на телефон">
+      <div className="carwash-phone-frame">
+        <span className="carwash-phone-notch" />
+        <div className="carwash-phone-screen">
+          <div className="carwash-phone-head">
+            <span className="carwash-phone-app">ORIONIX</span>
+            <span className="carwash-phone-now">сейчас</span>
+          </div>
+          {notice === 'idle' ? (
+            <>
+              <p className="carwash-phone-title">Где был сотрудник?</p>
+              <p className="carwash-phone-body">
+                {where} — простояла {idle?.minutes ?? 20} минут без сотрудника, услугу оказали
+                только потом, за {idle?.washMinutes ?? 10} минут
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="carwash-phone-title">Проверьте мойку</p>
+              <p className="carwash-phone-body">{where} — оплата не внесена</p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CarWashStaffTerminal({
+  box,
+  clock,
+  plate,
+  service,
+}: {
+  box: number;
+  clock: string;
+  plate: string;
+  service: CarWashService;
+}) {
+  const [taken, setTaken] = useState(false);
+  const [peek, setPeek] = useState(false);
+  return (
+    <div className="carwash-terminal" role="status" aria-label="Терминал службы контроля">
+      <div className="carwash-terminal-head">
+        <span className="carwash-terminal-dot" aria-hidden />
+        <span className="carwash-terminal-app">Служба контроля</span>
+        <span className="carwash-terminal-clock">{clock}</span>
+      </div>
+      <p className="carwash-terminal-title">
+        <ExclamationTriangleIcon aria-hidden />
+        Расхождение услуги
+      </p>
+      <p className="carwash-terminal-sub">
+        Бокс {box} · {plate} · визит закрыт
+      </p>
+      <div className="carwash-terminal-grid">
+        <div className="carwash-terminal-col">
+          <span className="carwash-terminal-cap">В заказе</span>
+          <span className="carwash-terminal-service">{service.ordered}</span>
+          <span className="carwash-terminal-num">
+            {service.orderedMinutes} мин · {sum(service.orderedPrice)}
+          </span>
+        </div>
+        <div className="carwash-terminal-col" data-state="fact">
+          <span className="carwash-terminal-cap">По факту</span>
+          <span className="carwash-terminal-service">{service.performed}</span>
+          <span className="carwash-terminal-num">
+            {service.performedMinutes} мин · {sum(service.performedPrice)}
+          </span>
+        </div>
+      </div>
+      <p className="carwash-terminal-delta">
+        −{service.orderedMinutes - service.performedMinutes} мин · −
+        {sum(service.orderedPrice - service.performedPrice)} · вероятная кража услуги
+      </p>
+      <div className="carwash-terminal-actions">
+        <button
+          className="carwash-terminal-btn"
+          data-state={taken ? 'taken' : 'live'}
+          disabled={taken}
+          onClick={() => setTaken(true)}
+          type="button"
+        >
+          {taken ? 'В работе' : 'Принять в работу'}
+        </button>
+        <button
+          aria-expanded={peek}
+          className="carwash-terminal-btn"
+          data-variant="ghost"
+          onClick={() => setPeek((value) => !value)}
+          type="button"
+        >
+          {peek ? 'Скрыть экран' : 'Что видит сотрудник'}
+        </button>
+      </div>
+      {peek ? (
+        <p className="carwash-terminal-peek">
+          <span className="carwash-terminal-cap">Экран сотрудника</span>
+          <span className="carwash-terminal-line">
+            {service.performed} · {service.performedMinutes} мин · {sum(service.performedPrice)} · визит
+            закрыт
+          </span>
+          <span className="carwash-terminal-ok">Ошибок нет</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function CarWashNotification({ event }: { event: ReturnType<typeof carwashLoop> }) {
   const [current, setCurrent] = useState(event);
   const [leaving, setLeaving] = useState<typeof event | null>(null);
@@ -205,6 +426,8 @@ function CarWashNotification({ event }: { event: ReturnType<typeof carwashLoop> 
                 <CheckIcon />
               ) : item.tone === 'progress' ? (
                 <ArrowPathIcon />
+              ) : item.tone === 'warning' ? (
+                <ExclamationTriangleIcon />
               ) : (
                 <CameraIcon />
               )}

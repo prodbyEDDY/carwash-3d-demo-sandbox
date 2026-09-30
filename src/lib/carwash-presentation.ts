@@ -40,6 +40,16 @@ const EVENTS: Record<CarWashScenarioKey | 'manual', readonly EventSpec[]> = {
     ['Два визита в журнале', 'success'],
     ['Сессии разделены', 'success'],
   ],
+  'unknown-car': [
+    ['Машина замечена', 'info'],
+    ['Номер распознан', 'info'],
+    ['В системе такого номера нет', 'warning'],
+    ['Визит добавлен с предупреждением', 'warning'],
+    ['Мойка в работе', 'progress'],
+    ['Выезд, сверка времени', 'success'],
+    ['Ждём оплату от мойщика', 'info'],
+    ['Оплата не внесена — пуш собственнику', 'warning'],
+  ],
   manual: [
     ['Параметр изменён', 'info'],
     ['Проверяем нагрузку', 'progress'],
@@ -62,6 +72,7 @@ export function carwashEvent(
     'time-mismatch': ['order', 'recognition', 'recognition', 'order', 'overview'],
     'node-offline': ['hardware', 'order', 'hardware', 'hardware', 'overview'],
     'back-to-back': ['departure', 'arrival', 'order', 'order', 'overview'],
+    'unknown-car': ['arrival', 'recognition', 'recognition', 'order', 'washing', 'departure', 'order', 'overview'],
     manual: ['overview', 'hardware', 'order', 'overview', 'overview'],
   };
   return {

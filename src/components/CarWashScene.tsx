@@ -6,6 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   loadVehicleAsset,
   vehicleInstance,
+  vehicleWheels,
   disposeVehicleAsset,
   updateVehiclePlate,
   vehicleFader,
@@ -19,7 +20,8 @@ import {
   type CarWashView,
 } from '../lib/carwash-layout';
 import { cameraEase } from '../lib/carwash-presentation';
-import { carwashLoop, TOUR_SPEED } from '../lib/carwash-loop';
+import { carwashAttendantPose } from '../lib/carwash-loop';
+import { carwashLoop, TOUR_SPEED, type CarWashTourKey } from '../lib/carwash-loop';
 import type {
   CarWashHotspotId,
   CarWashPhase,
@@ -41,6 +43,8 @@ interface CarWashSceneProps {
   eventTitle?: string;
   eventTone?: string;
   tourClock?: RefObject<number>;
+  /** Какой сценарий играет тур; сцена читает тот же цикл, что и панель. */
+  scenario?: CarWashTourKey;
 }
 export interface CarWashSceneOverlay {
   id: CarWashHotspotId;
@@ -136,6 +140,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
     const assetAbort = new AbortController();
     let assetReady = false;
     const vehicleInstances: THREE.Group[] = [];
+    const wheelsByInstance: THREE.Object3D[][] = [];
     const fadeFallbacks = model.bays.map((bay) => vehicleFader(bay.car.group));
     const fadeVehicles: Array<(opacity: number) => void> = [];
     void loadVehicleAsset(assetAbort.signal)
@@ -153,6 +158,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
           });
           const instance = vehicleInstance(template, index === 0);
           vehicleInstances[index] = instance;
+          wheelsByInstance[index] = vehicleWheels(instance);
           fadeVehicles[index] = vehicleFader(instance, false);
           bay.car.group.add(instance);
           // The hidden template is cloned only for resource sharing; instances render normally.
@@ -230,6 +236,13 @@ export default function CarWashScene(props: CarWashSceneProps) {
           target.set(officeX + 0.45, 1, -1.35);
           break;
         case 'washing':
+          // Когда мойщик стоит за кормой, ракурс сбоку его не показывает: уходим
+          // к въезду и смотрим на машину с задней части.
+          if (carwashAttendantPose(live.current.scenario) === 'rear') {
+            destination.set(x + 3.9 * wide, 2.45, 5.4 * wide);
+            target.set(x - 0.1, 1.05, 1.35);
+            break;
+          }
           destination.set(x - 3.8 * wide, 2.5, 2.8 * wide);
           target.set(x - 0.65, 1, -0.7);
           break;
@@ -359,7 +372,7 @@ export default function CarWashScene(props: CarWashSceneProps) {
       previous = now;
       const p = live.current,
         count = Math.round(p.values.boxes);
-      const tour = p.tourClock ? carwashLoop(p.tourClock.current) : null;
+      const tour = p.tourClock ? carwashLoop(p.tourClock.current, p.scenario) : null;
       model.layout(count);
       const focusIndex = Math.min(count - 1, Math.max(0, p.focusBox - 1)),
         stage = p.view ?? sceneStage(p.phase, p.activeHotspot);
@@ -383,7 +396,21 @@ export default function CarWashScene(props: CarWashSceneProps) {
           }[stage],
         p.focusBox,
         p.eventTone,
-        tour?.cars.map((car) => car.opacity > 0 && car.z < L.frontZ ? car.plate : null),
+        // Пока визит помечен треугольником, номер остаётся в строке монитора даже
+        // после выезда машины: запись в системе живёт дольше, чем бокс занят.
+        tour?.cars.map((car) =>
+          car.alert !== 'none' || (car.opacity > 0 && car.z < L.frontZ) ? car.plate : null,
+        ),
+        tour?.cars.map((car) => car.alert),
+        // Услуга появляется на мониторе только после того, как мойщик её пробивает.
+        tour?.service && tour.serviceLine
+          ? {
+              label: tour.service.performedShort,
+              minutes: tour.service.performedMinutes,
+              price: tour.service.performedPrice,
+            }
+          : null,
+        tour?.idleNote,
       );
       const requested = p.view ?? (p.guidedCamera ? stage : 'overview'),
         key = `${requested}:${p.focusBox}:${count}`;
@@ -450,9 +477,13 @@ export default function CarWashScene(props: CarWashSceneProps) {
         bay.car.group.rotation.y = traffic || hero ? pose.rotationY : 0;
         fadeFallbacks[i]?.(traffic?.opacity ?? 1);
         fadeVehicles[i]?.(traffic?.opacity ?? 1);
+        // Sign follows travel: the wheel rolls backwards for the axle, not with it.
         bay.car.wheels.forEach((wheel) => {
-          wheel.rotation.x += (pose.z - oldZ) / 0.37;
+          wheel.rotation.x -= (pose.z - oldZ) / 0.37;
         });
+        for (const wheel of wheelsByInstance[i] ?? []) {
+          wheel.rotation.x -= (pose.z - oldZ) / 0.37;
+        }
         const reading =
           traffic?.reading ??
           (hero && (stage === 'recognition' || stage === 'departure') && !preview);
@@ -465,9 +496,19 @@ export default function CarWashScene(props: CarWashSceneProps) {
         bay.scanner.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(now * 0.003) * 0.025);
         const washing = traffic?.washing ?? (hero && stage === 'washing' && !preview);
         bay.worker.visible = traffic ? washing : hero || background;
-        bay.worker.position.z =
-          L.parkZ +
-          (washing && !reducedMotion ? Math.sin(now * 0.00065 * TOUR_SPEED) * 0.45 : 0.4);
+        // Поза мойщика: сбоку по умолчанию, за кормой машины — когда моют кузов.
+        // Машина въезжает задним ходом, поэтому корма смотрит в сторону въезда (+Z).
+        // Поза достаётся только боксу-герою: соседние боксы моют сбоку, подмена
+        // услуги — частный случай одного бокса, а не всего зала.
+        const rear = hero && tour?.attendant === 'rear',
+          stride = washing && !reducedMotion ? Math.sin(now * 0.00065 * TOUR_SPEED) * 0.45 : 0.4;
+        bay.worker.rotation.y = rear ? Math.PI / 2 : 0;
+        bay.worker.position.set(
+          rear ? stride : -1.68,
+          0.06,
+          // Отступ такой, чтобы сопло мини-пистолета оставалось у кормы, а не внутри кузова.
+          rear ? L.parkZ + L.carLength / 2 + 0.95 : L.parkZ + stride,
+        );
         bay.workerUpper.rotation.y =
           washing && !reducedMotion ? Math.sin(now * 0.001) * 0.075 : 0;
         bay.workerUpper.rotation.z = washing ? -0.045 : 0;
@@ -475,10 +516,14 @@ export default function CarWashScene(props: CarWashSceneProps) {
         if (washing) {
           for (let j = 0; j < 90; j++) {
             const t = reducedMotion ? j / 90 : (j / 90 + now * 0.002) % 1;
-            bay.particlePositions[j * 3] = 0.63 + t * 0.6;
-            bay.particlePositions[j * 3 + 1] =
-              0.07 - t * 0.12 - t * t * 0.36 + Math.sin(j * 7) * t * 0.1;
-            bay.particlePositions[j * 3 + 2] = 0.06 + Math.sin(j * 13) * t * 0.18;
+            // Сзади струя идёт выше и шире: моется зад машины, а не бампер.
+            bay.particlePositions[j * 3] = rear ? 0.6 + t * 0.55 : 0.63 + t * 0.6;
+            bay.particlePositions[j * 3 + 1] = rear
+              ? 0.46 - t * 0.3 - Math.sin(j * 7) * t * 0.06
+              : 0.07 - t * 0.12 - t * t * 0.36 + Math.sin(j * 7) * t * 0.1;
+            bay.particlePositions[j * 3 + 2] = rear
+              ? 0.1 + Math.sin(j * 13) * t * 0.42
+              : 0.06 + Math.sin(j * 13) * t * 0.18;
           }
           bay.spray.geometry.attributes.position!.needsUpdate = true;
         }
